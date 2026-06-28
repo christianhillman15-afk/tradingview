@@ -127,6 +127,80 @@ ScienceDirect deep-ensemble HFT paper.
 
 ---
 
+## 7. Supertrend (ADX-filtered) — `supertrend`
+
+A volatility-based trend follower. The Supertrend line (ATR×multiplier around
+the HL2 midline) flips sides of price when the trend changes.
+
+**Rules implemented**
+- Enter on the Supertrend flip; only when ADX ≥ `adx_min` (skip the chop).
+- The Supertrend line is the stop, and an ATR trailing stop ratchets the exit —
+  this is the professional "Supertrend as a trailing stop" usage.
+
+Defaults: ATR period 10, multiplier 3.0, ADX filter 20. Sources: TrendSpider,
+CrossTrade, LuxAlgo.
+
+## 8. Squeeze Breakout (Bollinger/Keltner) — `bollinger_squeeze`
+
+John Carter's TTM Squeeze: when the Bollinger Bands contract *inside* the
+Keltner Channels, volatility is coiled; the "squeeze" firing (BB expanding back
+outside KC) precedes a directional move.
+
+**Rules implemented**
+- Detect squeeze ON (BB inside KC); on release, enter in the direction of
+  momentum (ROC sign); stop at the opposite squeeze-range extreme; ATR trail.
+
+Defaults: BB(20, 2.0), KC(20, 1.5×ATR), ROC(12). Sources: TrendSpider, StockCharts
+ChartSchool, Deepvue.
+
+## 9. Z-Score Mean-Reversion — `zscore_reversion`
+
+Fades extremes measured in standard deviations of price from its rolling mean.
+
+**Rules implemented**
+- Long when z ≤ −`entry_z` (cheap), short when z ≥ +`entry_z` (rich); target the
+  mean (z→0); ATR stop; time-stop if it doesn't revert. Defaults: period 20,
+  entry_z 2.0. Source: standard statistical-arbitrage / Ornstein-Uhlenbeck logic.
+
+## 10. Regime-Aware Ensemble — `ensemble` (the flagship)
+
+Markets only trend ~30% of the time, so no single strategy wins in every regime.
+This meta-strategy runs several members as parallel opinion generators and gates
+them by an **ADX + efficiency-ratio regime filter**: in a trending regime only
+trend/breakout/ml members vote; in a ranging regime only reversion members vote.
+Weighted votes net to a single position; entries fire when conviction clears a
+threshold and flatten when it collapses.
+
+This is the "diversify across uncorrelated strategies and only deploy each in its
+favourable regime" principle that systematic shops use. Sources: FMZQuant ADX
+filter study, the regime-classifier (ADX + efficiency ratio + choppiness) approach.
+
+---
+
+## Robustness & validation (what makes the bot trustworthy)
+
+Implementing strategies is the easy part; *trusting* them requires defending
+against overfitting. The bot includes:
+
+- **Walk-forward analysis** (`walkforward.py`): optimise parameters on in-sample
+  history, evaluate on the next unseen segment, compound out-of-sample. The
+  honest test that exposes curve-fitting — a strategy that only shines in-sample
+  is rejected.
+- **Parameter optimisation** (`optimize.py`): grid/random search over risk-adjusted
+  objectives (Sharpe, Calmar, profit factor), with a minimum-trades guard so noise
+  can't win. Always paired with walk-forward confirmation.
+- **Monte Carlo stress testing** (`montecarlo.py`): bootstrap/reshuffle the trade
+  sequence thousands of times to estimate probability of profit, **risk of ruin**,
+  and the *likely-worst* drawdown that a single equity curve hides.
+- **Higher-timeframe resampling** so swing strategies don't overtrade minute noise.
+- **Volatility-based sizing** + **trailing stops** + **daily-loss & drawdown
+  kill switches** for capital preservation.
+
+Sources: López de Prado *Advances in Financial Machine Learning* (walk-forward,
+purged CV, deflated Sharpe), QuantInsti & Interactive Brokers on walk-forward,
+QuantifiedStrategies on Monte Carlo, the 7 Circles / Concretum notes on
+volatility targeting.
+
 ## Risk management (applies to every strategy)
 
 The professional rules, enforced centrally in `risk.py`:
@@ -185,6 +259,28 @@ Risk management
 - https://optimusfutures.com/blog/day-trading-risk-management/
 - https://myfundedfutures.com/blog/daily-loss-limits-explained-protect-your-account-and-sanity
 - https://tradethatswing.com/the-1-risk-rule-for-day-trading-and-swing-trading/
+
+Supertrend
+- https://trendspider.com/learning-center/supertrend-indicator-a-comprehensive-guide/
+- https://crosstrade.io/learn/technical-indicators/supertrend
+- https://www.luxalgo.com/blog/how-to-use-the-supertrend-indicator-effectively/
+
+Squeeze breakout (TTM / Bollinger-Keltner)
+- https://trendspider.com/learning-center/introduction-to-ttm-squeeze/
+- https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/ttm-squeeze
+- https://deepvue.com/indicators/ttm-squeeze-indicator-for-breakout-trades/
+
+ADX / regime detection
+- https://medium.com/@FMZQuant/strong-trend-adx-momentum-filtered-entry-quantitative-trading-strategy-0ae42cffd566
+- https://www.liberatedstocktrader.com/adx-indicator/
+
+Robustness & validation
+- López de Prado, "Advances in Financial Machine Learning" (purged/combinatorial CV, deflated Sharpe)
+- https://blog.quantinsti.com/walk-forward-optimization-introduction/
+- https://www.interactivebrokers.com/campus/ibkr-quant-news/the-future-of-backtesting-a-deep-dive-into-walk-forward-analysis/
+- https://www.quantifiedstrategies.com/monte-carlo-simulation-in-trading/
+- https://the7circles.uk/systematic-trading-4-volatility-targeting-and-position-sizing/
+- https://concretumgroup.com/position-sizing-in-trend-following-comparing-volatility-targeting-volatility-parity-and-pyramiding/
 
 Interactive Brokers API
 - https://github.com/erdewit/ib_insync

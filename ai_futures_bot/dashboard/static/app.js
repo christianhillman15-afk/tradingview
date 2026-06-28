@@ -193,6 +193,14 @@ function renderMetrics(s) {
     ["Max Drawdown", pct(m.max_drawdown_pct)],
     ["Max DD ($)", fmtMoney(-Math.abs(m.max_drawdown_dollars))],
     ["Sharpe", fmtNum(m.sharpe, 2)],
+    ["Sortino", m.sortino === undefined ? "—" : fmtNum(m.sortino, 2)],
+    ["Calmar", m.calmar === undefined ? "—" : fmtNum(m.calmar, 2)],
+    ["Exposure", m.exposure_pct === undefined ? "—" : pct(m.exposure_pct)],
+    ["Avg Bars Held", m.avg_bars_held === undefined ? "—" : fmtNum(m.avg_bars_held, 1)],
+    ["Avg MFE", m.avg_mfe === undefined ? "—" : fmtMoney(m.avg_mfe)],
+    ["Avg MAE", m.avg_mae === undefined ? "—" : fmtMoney(m.avg_mae)],
+    ["Largest Win", m.largest_win === undefined ? "—" : fmtMoney(m.largest_win)],
+    ["Largest Loss", m.largest_loss === undefined ? "—" : fmtMoney(-Math.abs(m.largest_loss || 0))],
     ["Max Consec. Losses", m.max_consecutive_losses],
     ["Starting Equity", fmtMoney(m.starting_equity)],
   ];
@@ -244,11 +252,13 @@ function drawDrawdown(s) {
 function drawLine(canvas, data, baseline, opts = {}) {
   const ctx = canvas.getContext("2d");
   const dpr = window.devicePixelRatio || 1;
+  // Use the CSS box (clientWidth/Height) as the logical size; never read back
+  // canvas.height after we mutate it, or the backing store grows each redraw.
   const w = canvas.clientWidth || canvas.parentElement.clientWidth || 600;
-  const h = canvas.height;
+  const h = canvas.clientHeight || 240;
   canvas.width = w * dpr;
   canvas.height = h * dpr;
-  ctx.scale(dpr, dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
   if (!data || data.length < 2) {
     ctx.fillStyle = "#8a94a8";
