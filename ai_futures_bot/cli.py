@@ -17,6 +17,7 @@ Everything defaults to a $50,000 paper account on the E-mini S&P 500 (ES).
 from __future__ import annotations
 
 import argparse
+import math
 import sys
 import threading
 from typing import Sequence
@@ -375,8 +376,23 @@ def cmd_optimize(args) -> int:
         print(f"\nDeflated Sharpe Ratio of the best result ({_grid_size(grid)} trials): "
               f"{best.dsr:.3f}  →  {verdict}")
         print("(DSR = P(true Sharpe > 0) after correcting for how many variants were tried.)")
+    # Minimum Backtest Length sanity check (López de Prado): the Sharpe a
+    # skill-less strategy can reach in-sample purely from trying N variants.
+    span_years = _bars_span_years(bars)
+    n_trials = _grid_size(grid)
+    if span_years > 0 and n_trials > 1:
+        noise_sharpe = math.sqrt(2.0 * math.log(n_trials) / span_years)
+        print(f"MinBTL check: ~{span_years:.1f}y of data, {n_trials} trials → a skill-less "
+              f"strategy could show annualised Sharpe up to ~{noise_sharpe:.2f} by luck "
+              f"(best here: {best.metrics['sharpe']}).")
     print("\n⚠ Confirm out-of-sample before trusting these — try `walkforward`.")
     return 0
+
+
+def _bars_span_years(bars) -> float:
+    if len(bars) < 2:
+        return 0.0
+    return (bars[-1].timestamp - bars[0].timestamp).total_seconds() / (365.25 * 24 * 3600)
 
 
 def cmd_walkforward(args) -> int:

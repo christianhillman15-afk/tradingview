@@ -192,3 +192,27 @@ def test_walk_forward_oos(hourly_bars):
     assert len(wf.windows) >= 1
     assert "roi_pct" in wf.aggregate
     assert wf.final_equity > 0
+
+
+# --- expanded contract universe -----------------------------------------
+def test_contract_universe_is_broad_and_consistent():
+    from ai_futures_bot.contracts import list_contracts
+
+    cs = list_contracts()
+    assert len(cs) >= 50  # not just the S&P 500 — all asset classes
+    syms = {c.symbol for c in cs}
+    # representative contracts from each asset class
+    for s in ["ES", "6E", "ZB", "CL", "GC", "ZC", "LE", "KC", "BTC"]:
+        assert s in syms, f"missing {s}"
+    # every contract's economics are internally consistent
+    for c in cs:
+        assert c.tick_size > 0 and c.tick_value > 0
+        assert c.point_value == pytest.approx(c.tick_value / c.tick_size)
+
+
+def test_tsmom_runs(hourly_bars):
+    spec = get_contract("MES")
+    risk = RiskManager(config=RiskConfig())
+    res = Backtester(get_strategy("tsmom", lookback=150), spec, risk, starting_cash=50_000).run(hourly_bars)
+    assert res.metrics["num_trades"] >= 0
+    assert res.portfolio.realized_pnl == pytest.approx(sum(t.pnl for t in res.trades), abs=1e-6)

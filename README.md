@@ -117,18 +117,21 @@ state shape, written to `runtime/state.json` by default.
 | `donchian_trend` | Trend following (Turtle) | Swing |
 | `macd_momentum` | Momentum + trend filter | Swing |
 | `bollinger_reversion` | Mean reversion | Swing |
+| `tsmom` | Time-series momentum (12-month, the most-validated edge) | Swing |
 | `supertrend` | Trend following (ADX-filtered, trailing) | Swing |
 | `bollinger_squeeze` | Volatility breakout (TTM squeeze) | Swing |
 | `zscore_reversion` | Statistical mean reversion | Swing |
 | `ensemble` | **Regime-aware multi-strategy composite (flagship)** | Swing |
 | `ml_ensemble` | AI/ML (RandomForest + GradientBoosting) | Swing |
 
-See **[STRATEGIES.md](STRATEGIES.md)** for the exact rules and the research
-sources behind each one. List them, or rank them all on the same data:
+See **[STRATEGIES.md](STRATEGIES.md)** for the exact rules and sources behind
+each one, and **[RESEARCH.md](RESEARCH.md)** for the evidence base (which edges
+actually persist, realistic Sharpe expectations, and the validation methodology).
+List them, or rank them all on the same data:
 
 ```bash
 python -m ai_futures_bot.cli list-strategies
-python -m ai_futures_bot.cli list-contracts          # 15+ futures across asset classes
+python -m ai_futures_bot.cli list-contracts          # 50+ futures: indices, FX, rates, energy, metals, grains, livestock, softs, crypto
 python -m ai_futures_bot.cli compare --symbol MES    # leaderboard: ROI/Sharpe/Sortino/PSR/PF/maxDD
 ```
 

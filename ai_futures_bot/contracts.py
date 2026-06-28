@@ -76,7 +76,52 @@ _REGISTRY: dict[str, ContractSpec] = {
         ContractSpec("MGC", "Micro Gold", "COMEX", 0.10, 1.00, initial_margin=1_100),
         ContractSpec("SI", "Silver", "COMEX", 0.005, 25.00, initial_margin=14_000),
         # --- Rates ---
+        ContractSpec("ZT", "2-Year T-Note", "CBOT", 0.0078125, 15.625, initial_margin=1_200),
+        ContractSpec("ZF", "5-Year T-Note", "CBOT", 0.0078125, 7.8125, initial_margin=1_300),
         ContractSpec("ZN", "10-Year T-Note", "CBOT", 0.015625, 15.625, initial_margin=2_000),
+        ContractSpec("TN", "Ultra 10-Year T-Note", "CBOT", 0.015625, 15.625, initial_margin=2_600),
+        ContractSpec("ZB", "30-Year T-Bond", "CBOT", 0.03125, 31.25, initial_margin=3_800),
+        ContractSpec("UB", "Ultra T-Bond", "CBOT", 0.03125, 31.25, initial_margin=5_800),
+        # --- FX (CME) ---
+        ContractSpec("6E", "Euro FX", "CME", 0.00005, 6.25, initial_margin=2_400),
+        ContractSpec("6J", "Japanese Yen", "CME", 0.0000005, 6.25, initial_margin=3_500),
+        ContractSpec("6B", "British Pound", "CME", 0.0001, 6.25, initial_margin=2_200),
+        ContractSpec("6A", "Australian Dollar", "CME", 0.0001, 10.00, initial_margin=1_800),
+        ContractSpec("6C", "Canadian Dollar", "CME", 0.00005, 5.00, initial_margin=1_300),
+        ContractSpec("6S", "Swiss Franc", "CME", 0.0001, 12.50, initial_margin=4_500),
+        ContractSpec("6N", "New Zealand Dollar", "CME", 0.0001, 10.00, initial_margin=1_400),
+        ContractSpec("M6E", "Micro Euro FX", "CME", 0.0001, 1.25, initial_margin=240),
+        ContractSpec("M6A", "Micro AUD/USD", "CME", 0.0001, 1.00, initial_margin=180),
+        # --- Energy (NYMEX) ---
+        ContractSpec("BZ", "Brent Crude Oil", "NYMEX", 0.01, 10.00, initial_margin=5_500),
+        ContractSpec("RB", "RBOB Gasoline", "NYMEX", 0.0001, 4.20, initial_margin=7_000),
+        ContractSpec("HO", "NY Harbor ULSD", "NYMEX", 0.0001, 4.20, initial_margin=7_000),
+        # --- Metals (COMEX / NYMEX) ---
+        ContractSpec("HG", "Copper", "COMEX", 0.0005, 12.50, initial_margin=6_000),
+        ContractSpec("MHG", "Micro Copper", "COMEX", 0.0005, 1.25, initial_margin=600),
+        ContractSpec("SIL", "Micro Silver (1,000 oz)", "COMEX", 0.005, 5.00, initial_margin=2_800),
+        ContractSpec("PL", "Platinum", "NYMEX", 0.10, 5.00, initial_margin=3_500),
+        # --- Grains / oilseeds (CBOT) ---
+        ContractSpec("ZC", "Corn", "CBOT", 0.25, 12.50, initial_margin=1_200),
+        ContractSpec("ZS", "Soybeans", "CBOT", 0.25, 12.50, initial_margin=2_600),
+        ContractSpec("ZW", "Chicago SRW Wheat", "CBOT", 0.25, 12.50, initial_margin=2_200),
+        ContractSpec("KE", "KC HRW Wheat", "CBOT", 0.25, 12.50, initial_margin=2_200),
+        ContractSpec("ZL", "Soybean Oil", "CBOT", 0.01, 6.00, initial_margin=1_100),
+        ContractSpec("ZM", "Soybean Meal", "CBOT", 0.10, 10.00, initial_margin=2_400),
+        ContractSpec("ZO", "Oats", "CBOT", 0.25, 12.50, initial_margin=1_000),
+        # --- Livestock (CME) ---
+        ContractSpec("LE", "Live Cattle", "CME", 0.025, 10.00, initial_margin=1_700),
+        ContractSpec("GF", "Feeder Cattle", "CME", 0.025, 12.50, initial_margin=3_200),
+        ContractSpec("HE", "Lean Hogs", "CME", 0.025, 10.00, initial_margin=1_600),
+        # --- Softs (ICE) ---
+        ContractSpec("KC", "Coffee C", "ICE", 0.05, 18.75, initial_margin=9_000),
+        ContractSpec("SB", "Sugar No.11", "ICE", 0.01, 11.20, initial_margin=1_300),
+        ContractSpec("CC", "Cocoa", "ICE", 1.0, 10.00, initial_margin=3_000),
+        ContractSpec("CT", "Cotton No.2", "ICE", 0.01, 5.00, initial_margin=2_500),
+        ContractSpec("OJ", "Orange Juice", "ICE", 0.05, 7.50, initial_margin=2_000),
+        # --- Crypto (CME) ---
+        ContractSpec("BTC", "Bitcoin", "CME", 5.0, 25.00, initial_margin=90_000),
+        ContractSpec("MBT", "Micro Bitcoin", "CME", 5.0, 0.50, initial_margin=1_800),
     ]
 }
 

@@ -18,6 +18,7 @@ from .macd_momentum import MacdMomentumStrategy
 from .ml_ensemble import MLEnsembleStrategy
 from .opening_range_breakout import OpeningRangeBreakoutStrategy
 from .supertrend import SupertrendStrategy
+from .tsmom import TimeSeriesMomentumStrategy
 from .vwap_reversion import VwapReversionStrategy
 from .zscore_reversion import ZScoreReversionStrategy
 
@@ -32,6 +33,7 @@ _REGISTRY: dict[str, Type[Strategy]] = {
         SupertrendStrategy,
         BollingerSqueezeStrategy,
         ZScoreReversionStrategy,
+        TimeSeriesMomentumStrategy,
         EnsembleStrategy,
         MLEnsembleStrategy,
     ]
@@ -70,6 +72,7 @@ __all__ = [
     "SupertrendStrategy",
     "BollingerSqueezeStrategy",
     "ZScoreReversionStrategy",
+    "TimeSeriesMomentumStrategy",
     "EnsembleStrategy",
     "MLEnsembleStrategy",
 ]
