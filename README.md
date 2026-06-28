@@ -5,11 +5,14 @@ futures** (E-mini / Micro S&P 500 `ES`/`MES`, Nasdaq `NQ`, crude `CL`, gold
 `GC`, and more), with a **professional live dashboard** that embeds TradingView
 charts and shows live trades, open positions, PnL, ROI, and win/loss stats.
 
-It ships with six professional strategies (opening-range breakout, VWAP
-mean-reversion, Donchian "Turtle" trend following, MACD momentum, Bollinger+RSI
-mean-reversion, and an AI/ML ensemble), a volatility-based risk manager with a
-daily-loss kill switch, an event-driven backtester, and a paper broker — all
-defaulting to a **$50,000 paper account**.
+It ships with **twelve strategies** (breakout, VWAP/Bollinger/z-score
+mean-reversion, Donchian/Supertrend/MACD/time-series-momentum trend following, a
+TTM squeeze, a regime-aware ensemble, an ML ensemble, and ML meta-labeling), **59
+contracts** across nine asset classes, a volatility-based risk manager with a
+daily-loss kill switch, multi-market portfolio backtesting, a full validation
+stack (Probabilistic/Deflated Sharpe, walk-forward, Monte Carlo, purged CV), and
+paper + Interactive Brokers execution — all defaulting to a **$50,000 paper
+account**.
 
 > ⚠️ **For education & research only — not financial advice.** Trading futures
 > carries substantial risk of loss and is not suitable for everyone.
@@ -132,7 +135,8 @@ state shape, written to `runtime/state.json` by default.
 | `bollinger_squeeze` | Volatility breakout (TTM squeeze) | Swing |
 | `zscore_reversion` | Statistical mean reversion | Swing |
 | `ensemble` | **Regime-aware multi-strategy composite (flagship)** | Swing |
-| `ml_ensemble` | AI/ML (RandomForest + GradientBoosting) | Swing |
+| `ml_ensemble` | AI/ML (RandomForest + GradientBoosting, triple-barrier labels) | Swing |
+| `ml_meta` | ML meta-labeling (filters a primary strategy's signals) | Swing |
 
 See **[STRATEGIES.md](STRATEGIES.md)** for the exact rules and sources behind
 each one, and **[RESEARCH.md](RESEARCH.md)** for the evidence base (which edges
@@ -141,7 +145,7 @@ List them, or rank them all on the same data:
 
 ```bash
 python -m ai_futures_bot.cli list-strategies
-python -m ai_futures_bot.cli list-contracts          # 50+ futures: indices, FX, rates, energy, metals, grains, livestock, softs, crypto
+python -m ai_futures_bot.cli list-contracts          # 59 futures: indices, FX, rates, energy, metals, grains, livestock, softs, crypto
 python -m ai_futures_bot.cli compare --symbol MES    # leaderboard: ROI/Sharpe/Sortino/PSR/PF/maxDD
 ```
 

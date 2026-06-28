@@ -5,8 +5,13 @@ price increment) and *tick value* (the dollar value of one tick). Profit/loss
 in dollars is computed from price moves using these specs, so getting them
 right is essential for correct position sizing and PnL.
 
-Values below reflect CME specifications at the time of writing. Always verify
-against the exchange before trading real money — contract specs change.
+Values below reflect CME/ICE specifications at the time of writing and were
+cross-checked against exchange-derived sources (most adversarially verified;
+a handful of softs/livestock/crypto were rate-limited during verification and
+come from standard specs). FX/rate tick conventions use the current CME outright
+increments; grains are quoted in CENTS per bushel (point value matches cents,
+as Yahoo/most feeds quote them). Always re-verify against the exchange before
+trading real money — contract specs change.
 """
 
 from __future__ import annotations
@@ -75,33 +80,40 @@ _REGISTRY: dict[str, ContractSpec] = {
         ContractSpec("GC", "Gold", "COMEX", 0.10, 10.00, initial_margin=11_000),
         ContractSpec("MGC", "Micro Gold", "COMEX", 0.10, 1.00, initial_margin=1_100),
         ContractSpec("SI", "Silver", "COMEX", 0.005, 25.00, initial_margin=14_000),
-        # --- Rates ---
-        ContractSpec("ZT", "2-Year T-Note", "CBOT", 0.0078125, 15.625, initial_margin=1_200),
+        # --- Rates (CBOT/CME) ---
+        ContractSpec("ZT", "2-Year T-Note", "CBOT", 0.00390625, 7.8125, initial_margin=1_320),
         ContractSpec("ZF", "5-Year T-Note", "CBOT", 0.0078125, 7.8125, initial_margin=1_300),
         ContractSpec("ZN", "10-Year T-Note", "CBOT", 0.015625, 15.625, initial_margin=2_000),
         ContractSpec("TN", "Ultra 10-Year T-Note", "CBOT", 0.015625, 15.625, initial_margin=2_600),
         ContractSpec("ZB", "30-Year T-Bond", "CBOT", 0.03125, 31.25, initial_margin=3_800),
         ContractSpec("UB", "Ultra T-Bond", "CBOT", 0.03125, 31.25, initial_margin=5_800),
-        # --- FX (CME) ---
-        ContractSpec("6E", "Euro FX", "CME", 0.00005, 6.25, initial_margin=2_400),
+        ContractSpec("SR3", "3-Month SOFR", "CME", 0.005, 12.50, initial_margin=450),
+        # --- FX (CME); tick conventions reflect current CME outright increments ---
+        ContractSpec("6E", "Euro FX", "CME", 0.00005, 6.25, initial_margin=2_970),
         ContractSpec("6J", "Japanese Yen", "CME", 0.0000005, 6.25, initial_margin=3_500),
         ContractSpec("6B", "British Pound", "CME", 0.0001, 6.25, initial_margin=2_200),
-        ContractSpec("6A", "Australian Dollar", "CME", 0.0001, 10.00, initial_margin=1_800),
-        ContractSpec("6C", "Canadian Dollar", "CME", 0.00005, 5.00, initial_margin=1_300),
+        ContractSpec("6A", "Australian Dollar", "CME", 0.00005, 5.00, initial_margin=2_300),
+        ContractSpec("6C", "Canadian Dollar", "CME", 0.0001, 10.00, initial_margin=990),
         ContractSpec("6S", "Swiss Franc", "CME", 0.0001, 12.50, initial_margin=4_500),
-        ContractSpec("6N", "New Zealand Dollar", "CME", 0.0001, 10.00, initial_margin=1_400),
+        ContractSpec("6N", "New Zealand Dollar", "CME", 0.00005, 5.00, initial_margin=1_430),
+        ContractSpec("6M", "Mexican Peso", "CME", 0.00001, 5.00, initial_margin=1_210),
         ContractSpec("M6E", "Micro Euro FX", "CME", 0.0001, 1.25, initial_margin=240),
         ContractSpec("M6A", "Micro AUD/USD", "CME", 0.0001, 1.00, initial_margin=180),
+        ContractSpec("M6B", "Micro GBP/USD", "CME", 0.0001, 0.625, initial_margin=209),
         # --- Energy (NYMEX) ---
         ContractSpec("BZ", "Brent Crude Oil", "NYMEX", 0.01, 10.00, initial_margin=5_500),
         ContractSpec("RB", "RBOB Gasoline", "NYMEX", 0.0001, 4.20, initial_margin=7_000),
         ContractSpec("HO", "NY Harbor ULSD", "NYMEX", 0.0001, 4.20, initial_margin=7_000),
+        ContractSpec("QG", "E-mini Natural Gas", "NYMEX", 0.005, 12.50, initial_margin=1_100),
+        ContractSpec("MNG", "Micro Henry Hub Natural Gas", "NYMEX", 0.001, 1.00, initial_margin=340),
         # --- Metals (COMEX / NYMEX) ---
         ContractSpec("HG", "Copper", "COMEX", 0.0005, 12.50, initial_margin=6_000),
         ContractSpec("MHG", "Micro Copper", "COMEX", 0.0005, 1.25, initial_margin=600),
         ContractSpec("SIL", "Micro Silver (1,000 oz)", "COMEX", 0.005, 5.00, initial_margin=2_800),
         ContractSpec("PL", "Platinum", "NYMEX", 0.10, 5.00, initial_margin=3_500),
-        # --- Grains / oilseeds (CBOT) ---
+        ContractSpec("PA", "Palladium", "NYMEX", 0.50, 50.00, initial_margin=11_000),
+        # --- Grains / oilseeds (CBOT); quoted in CENTS per bushel (point value
+        #     reflects cents-quoting, matching Yahoo/most data feeds) ---
         ContractSpec("ZC", "Corn", "CBOT", 0.25, 12.50, initial_margin=1_200),
         ContractSpec("ZS", "Soybeans", "CBOT", 0.25, 12.50, initial_margin=2_600),
         ContractSpec("ZW", "Chicago SRW Wheat", "CBOT", 0.25, 12.50, initial_margin=2_200),
