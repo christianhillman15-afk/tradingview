@@ -118,9 +118,16 @@ predicts the probability that price is higher *H* bars ahead.
   pre-trained model can be loaded via `model_path`.
 - Long when P(up) > 0.58, short when < 0.42; ATR stop; size scaled by confidence.
 
-**Caveats (important):** this is a *single* train/test split, not full
-walk-forward — real use needs rolling retraining, purged cross-validation,
-realistic transaction costs, and out-of-sample validation on multiple regimes.
+**Rigor:** the model trains on **path-aware triple-barrier labels** (López de
+Prado) rather than naive fixed-horizon return signs, and the `train` command
+reports a **purged + embargoed 5-fold CV** accuracy that removes label-overlap
+leakage — the honest out-of-sample read. On random synthetic data this correctly
+reports ~50% (no edge), which is exactly the point: it refuses to be fooled by an
+in-sample backtest that looks profitable.
+
+**Caveats (important):** the in-strategy split is still a *single* train/test
+split — real use needs rolling retraining, meta-labeling, realistic transaction
+costs, and out-of-sample validation on multiple regimes.
 Ensembles reduce variance but cannot manufacture an edge that isn't in the data.
 Sources: arXiv 2412.15448, the CFA Institute ML-in-commodities chapter,
 ScienceDirect deep-ensemble HFT paper.

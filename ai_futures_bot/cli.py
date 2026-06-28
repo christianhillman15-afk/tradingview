@@ -250,10 +250,17 @@ def cmd_train(args) -> int:
     cfg = _load_config(args)
     bars = _load_bars(cfg)
     from .ml.features import build_features, build_labels
+    from .ml.labeling import binary_labels, triple_barrier_labels
     from .ml.model import EnsembleModel
 
     rows, valid = build_features(bars)
-    labels = build_labels(bars, horizon=args.horizon)
+    if args.labeling == "triple_barrier":
+        tb, t1 = triple_barrier_labels(bars, max_horizon=args.horizon)
+        labels = binary_labels(tb)
+    else:
+        labels = build_labels(bars, horizon=args.horizon)
+        t1 = [min(i + args.horizon, len(bars) - 1) for i in range(len(bars))]
+
     X, y = [], []
     for i in range(len(bars)):
         if valid[i] and labels[i] is not None:
@@ -261,6 +268,16 @@ def cmd_train(args) -> int:
             y.append(labels[i])
     if len(X) < 100 or len(set(y)) < 2:
         raise SystemExit("Not enough labelled data to train. Use more --days.")
+
+    # Honest, leakage-free evaluation BEFORE fitting the final model.
+    from .ml.cv import purged_cv_score
+
+    cv_acc = purged_cv_score(rows, labels, valid, t1, n_splits=5, embargo=0.01)
+    if cv_acc is not None:
+        verdict = "has signal" if cv_acc > 0.53 else ("coin-flip" if cv_acc >= 0.47 else "inverted/none")
+        print(f"Purged 5-fold CV accuracy: {cv_acc*100:.1f}%  →  {verdict} "
+              f"(50% = no edge; labeling={args.labeling})")
+
     print(f"Training ensemble on {len(X)} samples ({sum(y)} up / {len(y) - sum(y)} down)…")
     model = EnsembleModel().fit(X, y)
     model.save(args.out)
@@ -581,6 +598,8 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common(p_tr)
     p_tr.add_argument("--out", default="runtime/model.pkl", help="Output model path")
     p_tr.add_argument("--horizon", type=int, default=10, help="Label horizon in bars")
+    p_tr.add_argument("--labeling", choices=["triple_barrier", "fixed"], default="triple_barrier",
+                      help="Label method (triple_barrier is path-aware, recommended)")
     p_tr.set_defaults(func=cmd_train)
 
     p_pf = sub.add_parser("portfolio", help="Backtest a strategy across a multi-market basket")

@@ -24,6 +24,7 @@ from typing import Sequence
 from ..data import Bar, atr_inputs
 from ..indicators import atr
 from ..ml.features import build_features, build_labels
+from ..ml.labeling import binary_labels, triple_barrier_labels
 from ..ml.model import EnsembleModel
 from .base import Signal, Strategy
 
@@ -42,6 +43,7 @@ class MLEnsembleStrategy(Strategy):
         atr_period: int = 14,
         atr_stop_mult: float = 2.0,
         model_path: str | None = None,
+        labeling: str = "triple_barrier",   # "triple_barrier" | "fixed"
     ) -> None:
         super().__init__(
             horizon=horizon,
@@ -51,6 +53,7 @@ class MLEnsembleStrategy(Strategy):
             atr_period=atr_period,
             atr_stop_mult=atr_stop_mult,
             model_path=model_path,
+            labeling=labeling,
         )
         self.horizon = horizon
         self.train_frac = train_frac
@@ -59,6 +62,16 @@ class MLEnsembleStrategy(Strategy):
         self.atr_period = atr_period
         self.atr_stop_mult = atr_stop_mult
         self.model_path = model_path
+        self.labeling = labeling
+
+    def _labels(self, bars):
+        """Training labels: path-aware triple-barrier (default) or fixed-horizon."""
+        if self.labeling == "triple_barrier":
+            tb, _ = triple_barrier_labels(
+                bars, pt_mult=2.0, sl_mult=2.0, max_horizon=self.horizon, atr_period=self.atr_period
+            )
+            return binary_labels(tb)
+        return build_labels(bars, horizon=self.horizon)
         self._proba: list[float | None] = []
         self._train_end = 0
 
@@ -81,7 +94,7 @@ class MLEnsembleStrategy(Strategy):
         self._train_end = max(int(n * self.train_frac), self.warmup())
         if n < self.warmup():
             return  # not enough data to train; stay flat
-        labels = build_labels(bars, horizon=self.horizon)
+        labels = self._labels(bars)
         X_train, y_train = [], []
         for i in range(min(self._train_end, n)):
             # Only use labels whose forward window stays inside the train region.

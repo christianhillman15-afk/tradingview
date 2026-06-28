@@ -139,7 +139,11 @@ labels.
    the next step).
 4. **MinBTL / DSR gating** surfaced everywhere a search happens — done in
    `optimize`.
-5. **Purged/combinatorial CV + triple-barrier labeling** for the ML strategy.
+5. **Purged CV + triple-barrier labeling** for the ML strategy — done
+   (`ml/labeling.py`, `ml/cv.py`): the ML strategy trains on path-aware
+   triple-barrier labels, and `train` reports a leakage-free purged 5-fold CV
+   accuracy (on the synthetic data it correctly reads ~50% = no edge, exposing
+   the in-sample backtest as noise). Meta-labeling is the next step.
 6. **Realistic cost modelling** stays front-and-centre — the overnight-drift
    result is the reminder that gross edges routinely vanish net of spreads.
 
