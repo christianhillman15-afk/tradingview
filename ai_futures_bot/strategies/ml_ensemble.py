@@ -79,9 +79,11 @@ class MLEnsembleStrategy(Strategy):
 
         # In-run split: train on the first train_frac, predict on the rest.
         self._train_end = max(int(n * self.train_frac), self.warmup())
+        if n < self.warmup():
+            return  # not enough data to train; stay flat
         labels = build_labels(bars, horizon=self.horizon)
         X_train, y_train = [], []
-        for i in range(self._train_end):
+        for i in range(min(self._train_end, n)):
             # Only use labels whose forward window stays inside the train region.
             if valid[i] and labels[i] is not None and i + self.horizon < self._train_end:
                 X_train.append(rows[i])

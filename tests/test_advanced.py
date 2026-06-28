@@ -12,7 +12,7 @@ from ai_futures_bot.montecarlo import monte_carlo
 from ai_futures_bot.optimize import grid_search
 from ai_futures_bot.portfolio import Portfolio, Trade
 from ai_futures_bot.risk import RiskConfig, RiskManager
-from ai_futures_bot.strategies import get_strategy
+from ai_futures_bot.strategies import get_strategy, list_strategies
 from ai_futures_bot.strategies.base import Signal, Strategy
 from ai_futures_bot.walkforward import walk_forward
 
@@ -255,3 +255,19 @@ def test_single_market_portfolio_div_ratio_is_one():
     one = {"MES": _basket()["MES"]}
     pr = portfolio_backtest("donchian_trend", one, starting_cash=50_000)
     assert pr.diversification_ratio == pytest.approx(1.0, abs=1e-6)
+
+
+@pytest.mark.parametrize("name", list_strategies())
+def test_every_strategy_survives_tiny_and_flat_data(name):
+    """Regression: no strategy should crash when data is shorter than its
+    warm-up or perfectly flat (ml_ensemble used to IndexError on tiny data)."""
+    spec = get_contract("MES")
+    t0 = datetime(2024, 1, 2, 14, 30, tzinfo=timezone.utc)
+    tiny = [Bar(t0 + timedelta(minutes=i), 5000, 5001, 4999, 5000, 1000) for i in range(5)]
+    flat = [Bar(t0 + timedelta(minutes=i), 5000, 5000, 5000, 5000, 1000) for i in range(120)]
+    for data in (tiny, flat):
+        res = Backtester(get_strategy(name), spec, RiskManager(config=RiskConfig()),
+                         starting_cash=50_000).run(data)
+        # invariants still hold on degenerate data
+        assert res.portfolio.position is None
+        assert res.portfolio.realized_pnl == pytest.approx(sum(t.pnl for t in res.trades), abs=1e-6)
