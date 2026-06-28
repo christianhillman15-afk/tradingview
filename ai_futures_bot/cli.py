@@ -129,7 +129,10 @@ def _print_metrics(title: str, cfg: Config, metrics: dict) -> None:
     print(f"Avg win / loss  : ${metrics['avg_win']:,.2f} / ${metrics['avg_loss']:,.2f} "
           f"(payoff {metrics['payoff_ratio']})")
     print(f"Max drawdown    : {metrics['max_drawdown_pct']:.2f}%  (${metrics['max_drawdown_dollars']:,.2f})")
-    print(f"Sharpe          : {metrics['sharpe']}")
+    print(f"Sharpe          : {metrics['sharpe']}  "
+          f"(Sortino {metrics['sortino']}, Calmar {metrics['calmar']})")
+    print(f"Prob. Sharpe>0  : {metrics.get('psr', 0) * 100:.1f}%  "
+          f"(skew {metrics.get('returns_skew', 0)}, kurt {metrics.get('returns_kurtosis', 0)})")
     print(f"Max consec. loss: {metrics['max_consecutive_losses']}")
 
 
@@ -316,7 +319,13 @@ def cmd_optimize(args) -> int:
         print(f"{i:>2}. score={r.score:>8.3f}  net=${m['net_profit']:>10,.0f}  "
               f"PF={m['profit_factor']}  trades={m['num_trades']:>4}  DD={m['max_drawdown_pct']:.1f}%  "
               f"{r.params}")
-    print("\n⚠ Confirm these out-of-sample before trusting them — try `walkforward`.")
+    best = results[0]
+    if best.dsr is not None:
+        verdict = "likely REAL" if best.dsr >= 0.95 else ("borderline" if best.dsr >= 0.6 else "likely OVERFIT")
+        print(f"\nDeflated Sharpe Ratio of the best result ({_grid_size(grid)} trials): "
+              f"{best.dsr:.3f}  →  {verdict}")
+        print("(DSR = P(true Sharpe > 0) after correcting for how many variants were tried.)")
+    print("\n⚠ Confirm out-of-sample before trusting these — try `walkforward`.")
     return 0
 
 

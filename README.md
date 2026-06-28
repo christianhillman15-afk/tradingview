@@ -213,8 +213,9 @@ ai_futures_bot/
   live.py             Streaming paper trader (writes dashboard state)
   metrics.py          ROI, win rate, profit factor, Sharpe, Sortino, Calmar, exposure, ...
   walkforward.py      Walk-forward out-of-sample validation
-  optimize.py         Grid/random parameter search
+  optimize.py         Grid/random parameter search (+ Deflated Sharpe overfit check)
   montecarlo.py       Monte Carlo trade-bootstrap (risk of ruin, drawdown distribution)
+  stats.py            Probabilistic & Deflated Sharpe Ratio (skill vs luck)
   state.py            Dashboard state snapshot + atomic JSON read/write
   broker/             Broker interface, PaperBroker, Interactive Brokers adapter
   ml/                 Feature engineering + ensemble model (optional)

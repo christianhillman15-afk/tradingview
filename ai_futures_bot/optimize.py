@@ -19,6 +19,7 @@ from .backtester import Backtester
 from .contracts import ContractSpec
 from .data import Bar
 from .risk import RiskConfig, RiskManager
+from .stats import deflated_sharpe_ratio
 from .strategies import get_strategy
 
 _OBJECTIVES = {
@@ -36,9 +37,32 @@ class OptResult:
     params: dict
     score: float
     metrics: dict
+    dsr: float | None = None   # Deflated Sharpe Ratio (set on the best result)
 
     def to_dict(self) -> dict:
-        return {"params": self.params, "score": round(self.score, 4), "metrics": self.metrics}
+        return {
+            "params": self.params,
+            "score": round(self.score, 4),
+            "dsr": None if self.dsr is None else round(self.dsr, 4),
+            "metrics": self.metrics,
+        }
+
+
+def _attach_dsr(results: list[OptResult], n_trials: int) -> None:
+    """Compute the Deflated Sharpe Ratio for the best result given how many
+    parameter combinations were tried (the multiple-testing correction)."""
+    if not results:
+        return
+    trial_srs = [r.metrics.get("sharpe_per_bar", 0.0) for r in results]
+    best = results[0]
+    best.dsr = deflated_sharpe_ratio(
+        best.metrics.get("sharpe_per_bar", 0.0),
+        best.metrics.get("n_returns", 0),
+        trial_srs,
+        skew=best.metrics.get("returns_skew", 0.0),
+        kurtosis=best.metrics.get("returns_kurtosis", 3.0),
+        n_trials=n_trials,
+    )
 
 
 def _score(metrics: dict, objective: str) -> float:
@@ -89,6 +113,7 @@ def grid_search(
                        starting_cash, (commission_per_contract, slippage_ticks))
         results.append(OptResult(params=params, score=_score(metrics, objective), metrics=metrics))
     results.sort(key=lambda r: r.score, reverse=True)
+    _attach_dsr(results, n_trials=len(combos))
     return results[:top_n]
 
 
@@ -127,4 +152,5 @@ def random_search(
                        starting_cash, (commission_per_contract, slippage_ticks))
         results.append(OptResult(params=params, score=_score(metrics, objective), metrics=metrics))
     results.sort(key=lambda r: r.score, reverse=True)
+    _attach_dsr(results, n_trials=len(results))
     return results[:top_n]

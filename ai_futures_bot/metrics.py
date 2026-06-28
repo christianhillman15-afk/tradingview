@@ -12,6 +12,7 @@ from datetime import datetime
 from typing import Sequence
 
 from .portfolio import Trade
+from .stats import probabilistic_sharpe_ratio, returns_moments
 
 
 def compute_metrics(
@@ -45,6 +46,11 @@ def compute_metrics(
     max_consec_losses = _max_consecutive_losses(trades)
     calmar = (cagr / max_dd) if max_dd > 0 else 0.0
 
+    # Per-bar return moments and the Probabilistic Sharpe Ratio (P(true SR > 0)).
+    bar_returns = [cur / prev - 1.0 for (_, prev), (_, cur) in zip(equity_curve, equity_curve[1:]) if prev > 0]
+    sr_bar, skew, kurt, n_ret = returns_moments(bar_returns)
+    psr = probabilistic_sharpe_ratio(sr_bar, n_ret, skew, kurt, benchmark=0.0)
+
     total_bars = len(equity_curve) or 1
     bars_in_market = sum(getattr(t, "bars_held", 0) for t in trades)
     exposure_pct = 100.0 * bars_in_market / total_bars
@@ -74,6 +80,11 @@ def compute_metrics(
         "sharpe": round(sharpe, 3),
         "sortino": round(sortino, 3),
         "calmar": round(calmar, 3),
+        "psr": round(psr, 4),
+        "sharpe_per_bar": round(sr_bar, 6),
+        "returns_skew": round(skew, 4),
+        "returns_kurtosis": round(kurt, 4),
+        "n_returns": n_ret,
         "max_consecutive_losses": max_consec_losses,
         "gross_profit": round(gross_profit, 2),
         "gross_loss": round(gross_loss, 2),

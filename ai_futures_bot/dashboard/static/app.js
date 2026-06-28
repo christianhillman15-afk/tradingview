@@ -195,6 +195,7 @@ function renderMetrics(s) {
     ["Sharpe", fmtNum(m.sharpe, 2)],
     ["Sortino", m.sortino === undefined ? "—" : fmtNum(m.sortino, 2)],
     ["Calmar", m.calmar === undefined ? "—" : fmtNum(m.calmar, 2)],
+    ["Prob. Sharpe (P SR>0)", m.psr === undefined ? "—" : pct(m.psr * 100)],
     ["Exposure", m.exposure_pct === undefined ? "—" : pct(m.exposure_pct)],
     ["Avg Bars Held", m.avg_bars_held === undefined ? "—" : fmtNum(m.avg_bars_held, 1)],
     ["Avg MFE", m.avg_mfe === undefined ? "—" : fmtMoney(m.avg_mfe)],

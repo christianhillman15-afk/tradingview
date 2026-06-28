@@ -182,6 +182,12 @@ filter study, the regime-classifier (ADX + efficiency ratio + choppiness) approa
 Implementing strategies is the easy part; *trusting* them requires defending
 against overfitting. The bot includes:
 
+- **Probabilistic & Deflated Sharpe Ratio** (`stats.py`): the Bailey & López de
+  Prado test for *skill vs luck*. PSR = P(true Sharpe > 0) given track-record
+  length, skew, and kurtosis (reported on every backtest and the dashboard). The
+  optimiser reports the **Deflated** Sharpe — the PSR after correcting for how
+  many parameter variants were tried — and flags a result as "likely overfit"
+  when it is low. A high in-sample Sharpe from a big sweep no longer fools you.
 - **Walk-forward analysis** (`walkforward.py`): optimise parameters on in-sample
   history, evaluate on the next unseen segment, compound out-of-sample. The
   honest test that exposes curve-fitting — a strategy that only shines in-sample
