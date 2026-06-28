@@ -24,6 +24,7 @@ from .base import Signal, Strategy
 
 class OpeningRangeBreakoutStrategy(Strategy):
     name = "opening_range_breakout"
+    category = "breakout"
     intraday = True
 
     def __init__(

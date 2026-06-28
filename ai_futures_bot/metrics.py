@@ -40,8 +40,19 @@ def compute_metrics(
 
     max_dd, max_dd_dollars = _max_drawdown(equity_curve)
     sharpe = _sharpe(equity_curve)
+    sortino = _sortino(equity_curve)
     cagr = _cagr(equity_curve, starting_cash)
     max_consec_losses = _max_consecutive_losses(trades)
+    calmar = (cagr / max_dd) if max_dd > 0 else 0.0
+
+    total_bars = len(equity_curve) or 1
+    bars_in_market = sum(getattr(t, "bars_held", 0) for t in trades)
+    exposure_pct = 100.0 * bars_in_market / total_bars
+    avg_bars_held = (bars_in_market / num_trades) if num_trades else 0.0
+    avg_mfe = (sum(getattr(t, "mfe", 0.0) for t in trades) / num_trades) if num_trades else 0.0
+    avg_mae = (sum(getattr(t, "mae", 0.0) for t in trades) / num_trades) if num_trades else 0.0
+    largest_win = max((t.pnl for t in wins), default=0.0)
+    largest_loss = min((t.pnl for t in losses), default=0.0)
 
     return {
         "starting_equity": round(starting_cash, 2),
@@ -61,7 +72,17 @@ def compute_metrics(
         "max_drawdown_pct": round(max_dd * 100, 3),
         "max_drawdown_dollars": round(max_dd_dollars, 2),
         "sharpe": round(sharpe, 3),
+        "sortino": round(sortino, 3),
+        "calmar": round(calmar, 3),
         "max_consecutive_losses": max_consec_losses,
+        "gross_profit": round(gross_profit, 2),
+        "gross_loss": round(gross_loss, 2),
+        "largest_win": round(largest_win, 2),
+        "largest_loss": round(largest_loss, 2),
+        "exposure_pct": round(exposure_pct, 2),
+        "avg_bars_held": round(avg_bars_held, 1),
+        "avg_mfe": round(avg_mfe, 2),
+        "avg_mae": round(avg_mae, 2),
     }
 
 
@@ -95,6 +116,22 @@ def _sharpe(equity_curve: Sequence[tuple[datetime, float]]) -> float:
         return 0.0
     periods_per_year = _infer_periods_per_year(equity_curve)
     return (mean / std) * math.sqrt(periods_per_year)
+
+
+def _sortino(equity_curve: Sequence[tuple[datetime, float]]) -> float:
+    """Sortino ratio — like Sharpe but penalising only downside volatility."""
+    if len(equity_curve) < 3:
+        return 0.0
+    rets = [cur / prev - 1.0 for (_, prev), (_, cur) in zip(equity_curve, equity_curve[1:]) if prev > 0]
+    if len(rets) < 2:
+        return 0.0
+    mean = sum(rets) / len(rets)
+    downside = [min(r, 0.0) ** 2 for r in rets]
+    dd = math.sqrt(sum(downside) / len(downside))
+    if dd == 0:
+        return 0.0
+    periods_per_year = _infer_periods_per_year(equity_curve)
+    return (mean / dd) * math.sqrt(periods_per_year)
 
 
 def _infer_periods_per_year(equity_curve: Sequence[tuple[datetime, float]]) -> float:

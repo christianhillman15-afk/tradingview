@@ -50,24 +50,43 @@ class ExecutionEngine:
 
     def step(self, bars: Sequence[Bar], i: int, is_session_end: bool) -> None:
         bar = bars[i]
+        atr_val = self._atr_series[i] if i < len(self._atr_series) else None
         self.risk.start_bar(bar.session_id, self.portfolio.equity(bar.close))
 
-        # 1) Protective stop / target (intrabar).
+        # 1) Track excursions for the open position over this bar.
+        if self.portfolio.position is not None:
+            self.portfolio.position.update_excursion(bar.high, bar.low, self.spec)
+
+        # 2) Protective stop / target (intrabar) — uses stops set on prior bars.
         self._check_protective_exits(bar)
 
-        # 2) Strategy signal.
+        # 3) Strategy signal.
         signal = self.strategy.on_bar(i)
         if signal is not None:
-            atr_val = self._atr_series[i] if i < len(self._atr_series) else None
             self._handle_signal(bar, signal, atr_val)
 
-        # 3) Flatten intraday strategies at the session close.
+        # 4) Flatten intraday strategies at the session close.
         if is_session_end and self.strategy.intraday and self.portfolio.position is not None:
             trade = self.portfolio.close(bar.close, bar.timestamp, reason="session close")
             self._on_close(trade)
 
-        # 4) Mark equity for the curve.
+        # 5) Ratchet any trailing stop using this bar's close (applies next bar).
+        self._update_trailing(bar, atr_val)
+
+        # 6) Mark equity for the curve.
         self.portfolio.mark(bar.timestamp, bar.close)
+
+    def _update_trailing(self, bar: Bar, atr_val: float | None) -> None:
+        pos = self.portfolio.position
+        if pos is None or pos.trail_atr_mult is None or atr_val is None:
+            return
+        gap = pos.trail_atr_mult * atr_val
+        if pos.side > 0:
+            new_stop = bar.close - gap
+            pos.stop = new_stop if pos.stop is None else max(pos.stop, new_stop)
+        else:
+            new_stop = bar.close + gap
+            pos.stop = new_stop if pos.stop is None else min(pos.stop, new_stop)
 
     def flatten(self, bar: Bar, reason: str = "flatten") -> None:
         if self.portfolio.position is not None:
@@ -139,6 +158,7 @@ class ExecutionEngine:
             target=signal.target,
             strategy=self.strategy.name,
             reason=signal.reason,
+            trail_atr_mult=signal.trail_atr_mult,
         )
         self._log(
             bar.timestamp,

@@ -24,9 +24,27 @@ class Position:
     target: float | None = None
     strategy: str = ""
     reason: str = ""
+    trail_atr_mult: float | None = None
+    # Excursion / duration tracking (filled in as the trade lives).
+    mfe: float = 0.0          # max favorable excursion ($)
+    mae: float = 0.0          # max adverse excursion ($, <= 0)
+    bars_held: int = 0
 
     def unrealized(self, price: float, spec: ContractSpec) -> float:
         return (price - self.entry_price) * spec.point_value * self.side * self.quantity
+
+    def update_excursion(self, high: float, low: float, spec: ContractSpec) -> None:
+        """Track best/worst dollar P&L reached during the trade, per bar."""
+        pv = spec.point_value * self.quantity
+        if self.side > 0:
+            favorable = (high - self.entry_price) * pv
+            adverse = (low - self.entry_price) * pv
+        else:
+            favorable = (self.entry_price - low) * pv
+            adverse = (self.entry_price - high) * pv
+        self.mfe = max(self.mfe, favorable)
+        self.mae = min(self.mae, adverse)
+        self.bars_held += 1
 
 
 @dataclass
@@ -44,6 +62,9 @@ class Trade:
     commission: float
     entry_reason: str = ""
     exit_reason: str = ""
+    mfe: float = 0.0          # max favorable excursion ($)
+    mae: float = 0.0          # max adverse excursion ($, <= 0)
+    bars_held: int = 0
 
     @property
     def return_pct(self) -> float:
@@ -70,6 +91,9 @@ class Trade:
             "won": self.won,
             "entry_reason": self.entry_reason,
             "exit_reason": self.exit_reason,
+            "mfe": round(self.mfe, 2),
+            "mae": round(self.mae, 2),
+            "bars_held": self.bars_held,
         }
 
 
@@ -121,6 +145,7 @@ class Portfolio:
         target: float | None = None,
         strategy: str = "",
         reason: str = "",
+        trail_atr_mult: float | None = None,
     ) -> None:
         if self.position is not None:
             raise RuntimeError("A position is already open; close it first.")
@@ -138,6 +163,7 @@ class Portfolio:
             target=target,
             strategy=strategy,
             reason=reason,
+            trail_atr_mult=trail_atr_mult,
         )
 
     def close(self, price: float, time: datetime, reason: str = "") -> Trade | None:
@@ -161,6 +187,9 @@ class Portfolio:
             commission=commission,
             entry_reason=pos.reason,
             exit_reason=reason,
+            mfe=pos.mfe,
+            mae=pos.mae,
+            bars_held=pos.bars_held,
         )
         self.trades.append(trade)
         self.position = None

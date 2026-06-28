@@ -23,6 +23,7 @@ from .base import Signal, Strategy
 
 class VwapReversionStrategy(Strategy):
     name = "vwap_reversion"
+    category = "reversion"
     intraday = True
 
     def __init__(

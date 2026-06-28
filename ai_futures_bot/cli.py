@@ -24,7 +24,7 @@ from typing import Sequence
 from .backtester import Backtester
 from .config import Config
 from .contracts import get_contract, list_contracts
-from .data import Bar, SyntheticDataGenerator, load_csv
+from .data import Bar, SyntheticDataGenerator, load_csv, resample
 from .live import LiveTrader
 from .risk import RiskManager
 from .state import snapshot, write_state
@@ -39,14 +39,18 @@ def _load_bars(cfg: Config) -> list[Bar]:
     if d.source == "csv":
         if not d.csv_path:
             raise SystemExit("data.source=csv requires data.csv_path")
-        return load_csv(d.csv_path)
-    gen = SyntheticDataGenerator(
-        seed=d.seed,
-        start_price=d.start_price,
-        annual_drift=d.annual_drift,
-        annual_vol=d.annual_vol,
-    )
-    return gen.generate(days=d.days, bars_per_day=d.bars_per_day)
+        bars = load_csv(d.csv_path)
+    else:
+        gen = SyntheticDataGenerator(
+            seed=d.seed,
+            start_price=d.start_price,
+            annual_drift=d.annual_drift,
+            annual_vol=d.annual_vol,
+        )
+        bars = gen.generate(days=d.days, bars_per_day=d.bars_per_day)
+    if d.timeframe_minutes and d.timeframe_minutes > 1:
+        bars = resample(bars, d.timeframe_minutes)
+    return bars
 
 
 def _build_risk(cfg: Config) -> RiskManager:
@@ -90,6 +94,8 @@ def _apply_common(cfg: Config, args) -> Config:
         cfg.data.days = args.days
     if getattr(args, "seed", None) is not None:
         cfg.data.seed = args.seed
+    if getattr(args, "timeframe", None) is not None:
+        cfg.data.timeframe_minutes = args.timeframe
     if getattr(args, "csv", None):
         cfg.data.source = "csv"
         cfg.data.csv_path = args.csv
@@ -259,10 +265,112 @@ def cmd_train(args) -> int:
     return 0
 
 
+def cmd_montecarlo(args) -> int:
+    cfg = _load_config(args)
+    spec = get_contract(cfg.symbol)
+    bars = _load_bars(cfg)
+    strategy = get_strategy(cfg.strategy, **cfg.strategy_params)
+    risk = _build_risk(cfg)
+    result = Backtester(
+        strategy, spec, risk, starting_cash=cfg.starting_cash,
+        commission_per_contract=cfg.commission_per_contract, slippage_ticks=cfg.slippage_ticks,
+    ).run(bars)
+    from .montecarlo import monte_carlo
+
+    mc = monte_carlo(
+        result.trades, cfg.starting_cash,
+        simulations=args.simulations, method=args.method, ruin_fraction=args.ruin_fraction,
+    )
+    d = mc.to_dict()
+    print(f"\n=== Monte Carlo ({d['simulations']} sims, {d['method']}) — {cfg.strategy} on {cfg.symbol} ===")
+    print(f"Backtest trades       : {len(result.trades)}")
+    print(f"Probability of profit : {d['prob_profit'] * 100:.1f}%")
+    print(f"Risk of ruin (<{int(args.ruin_fraction*100)}%): {d['risk_of_ruin'] * 100:.2f}%")
+    pe = d["final_equity_pctiles"]
+    print(f"Final equity p5/p50/p95: ${pe['p5']:,.0f} / ${pe['p50']:,.0f} / ${pe['p95']:,.0f}")
+    dd = d["max_drawdown_pctiles"]
+    print(f"Max drawdown p50/p95   : {dd['p50']*100:.1f}% / {dd['p95']*100:.1f}%")
+    return 0
+
+
+def cmd_optimize(args) -> int:
+    cfg = _load_config(args)
+    spec = get_contract(cfg.symbol)
+    bars = _load_bars(cfg)
+    from .optimize import grid_search
+
+    grid = _parse_grid(args.grid)
+    if not grid:
+        raise SystemExit("Provide a search grid, e.g. --grid entry_period=10,20,30 --grid atr_stop_mult=2,3")
+    print(f"Grid-searching {cfg.strategy} on {cfg.symbol} "
+          f"({_grid_size(grid)} combos, objective={args.objective})…")
+    results = grid_search(
+        cfg.strategy, grid, bars, spec, objective=args.objective,
+        risk_config=cfg.risk, starting_cash=cfg.starting_cash,
+        commission_per_contract=cfg.commission_per_contract, slippage_ticks=cfg.slippage_ticks,
+        top_n=args.top,
+    )
+    print(f"\nTop {len(results)} by {args.objective}:")
+    for i, r in enumerate(results, 1):
+        m = r.metrics
+        print(f"{i:>2}. score={r.score:>8.3f}  net=${m['net_profit']:>10,.0f}  "
+              f"PF={m['profit_factor']}  trades={m['num_trades']:>4}  DD={m['max_drawdown_pct']:.1f}%  "
+              f"{r.params}")
+    print("\n⚠ Confirm these out-of-sample before trusting them — try `walkforward`.")
+    return 0
+
+
+def cmd_walkforward(args) -> int:
+    cfg = _load_config(args)
+    spec = get_contract(cfg.symbol)
+    bars = _load_bars(cfg)
+    from .walkforward import walk_forward
+
+    grid = _parse_grid(args.grid) or None
+    print(f"Walk-forward: {cfg.strategy} on {cfg.symbol}, {args.splits} splits, "
+          f"{'optimising ' + args.objective if grid else 'fixed params'}…")
+    wf = walk_forward(
+        cfg.strategy, bars, spec, param_grid=grid, base_params=cfg.strategy_params,
+        n_splits=args.splits, train_frac=args.train_frac, objective=args.objective,
+        risk_config=cfg.risk, starting_cash=cfg.starting_cash,
+        commission_per_contract=cfg.commission_per_contract, slippage_ticks=cfg.slippage_ticks,
+    )
+    print("\nOut-of-sample windows:")
+    for w in wf.windows:
+        m = w.oos_metrics
+        print(f"  #{w.index} {w.test_start_time[:10]}→{w.test_end_time[:10]}  "
+              f"${w.start_equity:>9,.0f}→${w.end_equity:>9,.0f}  "
+              f"({m['roi_pct']:+.1f}%, {m['num_trades']} trades, Sharpe {m['sharpe']})")
+        if grid:
+            print(f"       params: {w.params}")
+    a = wf.aggregate
+    print(f"\nStitched OOS: ${cfg.starting_cash:,.0f} → ${wf.final_equity:,.0f} "
+          f"({a['roi_pct']:+.2f}%), Sharpe {a['sharpe']}, PF {a['profit_factor']}, "
+          f"maxDD {a['max_drawdown_pct']:.1f}%, {a['num_trades']} trades")
+    return 0
+
+
 def cmd_dashboard(args) -> int:
     cfg = _load_config(args)
     _serve(cfg)
     return 0
+
+
+def _parse_grid(pairs) -> dict:
+    grid: dict = {}
+    for item in pairs or []:
+        if "=" not in item:
+            raise SystemExit(f"--grid expects key=v1,v2,..., got {item!r}")
+        key, raw = item.split("=", 1)
+        grid[key.strip()] = [_coerce(x.strip()) for x in raw.split(",") if x.strip()]
+    return grid
+
+
+def _grid_size(grid: dict) -> int:
+    size = 1
+    for v in grid.values():
+        size *= len(v)
+    return size
 
 
 def cmd_demo(args) -> int:
@@ -291,6 +399,8 @@ def _add_common(p: argparse.ArgumentParser) -> None:
     p.add_argument("--balance", type=float, help="Starting paper balance (default 50000)")
     p.add_argument("--days", type=int, help="Synthetic days to generate")
     p.add_argument("--seed", type=int, help="Synthetic RNG seed")
+    p.add_argument("--timeframe", type=int, dest="timeframe",
+                   help="Resample bars to N-minute timeframe (e.g. 60=hourly; swing strategies want this)")
     p.add_argument("--csv", help="Load bars from a CSV instead of synthetic data")
     p.add_argument("--state", help="Path to the dashboard state JSON")
     p.add_argument("--set", action="append", metavar="key=value",
@@ -324,6 +434,33 @@ def build_parser() -> argparse.ArgumentParser:
     p_tr.add_argument("--out", default="runtime/model.pkl", help="Output model path")
     p_tr.add_argument("--horizon", type=int, default=10, help="Label horizon in bars")
     p_tr.set_defaults(func=cmd_train)
+
+    p_mc = sub.add_parser("montecarlo", help="Monte Carlo stress test of the trade sequence")
+    _add_common(p_mc)
+    p_mc.add_argument("--simulations", type=int, default=2000)
+    p_mc.add_argument("--method", choices=["resample", "shuffle"], default="resample")
+    p_mc.add_argument("--ruin-fraction", type=float, default=0.5, dest="ruin_fraction",
+                      help="Ruin threshold as a fraction of starting equity")
+    p_mc.set_defaults(func=cmd_montecarlo)
+
+    p_opt = sub.add_parser("optimize", help="Grid-search strategy parameters")
+    _add_common(p_opt)
+    p_opt.add_argument("--grid", action="append", metavar="key=v1,v2,...",
+                       help="Parameter values to search (repeatable)")
+    p_opt.add_argument("--objective", default="sharpe",
+                       choices=["sharpe", "sortino", "calmar", "profit_factor", "net_profit", "expectancy"])
+    p_opt.add_argument("--top", type=int, default=10)
+    p_opt.set_defaults(func=cmd_optimize)
+
+    p_wf = sub.add_parser("walkforward", help="Walk-forward out-of-sample validation")
+    _add_common(p_wf)
+    p_wf.add_argument("--grid", action="append", metavar="key=v1,v2,...",
+                      help="Optimise these params on each in-sample window (repeatable)")
+    p_wf.add_argument("--splits", type=int, default=5)
+    p_wf.add_argument("--train-frac", type=float, default=0.5, dest="train_frac")
+    p_wf.add_argument("--objective", default="sharpe",
+                      choices=["sharpe", "sortino", "calmar", "profit_factor", "net_profit", "expectancy"])
+    p_wf.set_defaults(func=cmd_walkforward)
 
     p_dash = sub.add_parser("dashboard", help="Serve the dashboard from a state file")
     _add_common(p_dash)

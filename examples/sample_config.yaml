@@ -1,33 +1,42 @@
-# Sample configuration for the AI futures bot.
+# Sample configuration for the AI futures bot — the flagship setup.
 # Run with:  python -m ai_futures_bot.cli backtest --config examples/sample_config.yaml --serve
 
-symbol: ES                 # E-mini S&P 500 (see `list-contracts` for more)
-strategy: donchian_trend   # see `list-strategies`
+symbol: MES                # Micro E-mini S&P 500 — right size for a $50k account
+strategy: ensemble         # regime-aware multi-strategy composite
 starting_cash: 50000       # $50,000 paper account
-commission_per_contract: 2.50
+commission_per_contract: 0.50   # MES round-turn is cheap; ES would be ~2.50
 slippage_ticks: 1.0
 state_path: runtime/state.json
 
-# Strategy-specific parameters (override any constructor argument).
+# Ensemble members + regime thresholds. Trend/breakout members vote in trending
+# regimes (ADX high); reversion members vote in ranging regimes (ADX low).
 strategy_params:
-  entry_period: 20
-  exit_period: 10
-  atr_stop_mult: 2.0
+  trend_adx: 25.0
+  range_adx: 20.0
+  enter_threshold: 0.5
+  members:
+    - {name: supertrend, weight: 1.0}
+    - {name: donchian_trend, weight: 1.0}
+    - {name: macd_momentum, weight: 1.0}
+    - {name: bollinger_squeeze, weight: 1.0}
+    - {name: bollinger_reversion, weight: 1.0}
+    - {name: zscore_reversion, weight: 1.0}
 
-# Risk management — the professional rules: small per-trade risk, daily-loss
-# kill switch, and a global drawdown halt.
+# Risk management — small per-trade risk, daily-loss kill switch, drawdown halt.
 risk:
   risk_per_trade: 0.01        # risk 1% of equity per trade
-  max_contracts: 20
+  max_contracts: 50
   max_margin_fraction: 0.50
   daily_loss_limit: 0.03      # stop trading for the day past a 3% loss
-  max_drawdown_stop: 0.20     # halt entirely past a 20% drawdown
+  max_drawdown_stop: 0.25     # halt entirely past a 25% drawdown
   scale_by_strength: false
 
 # Data source: "synthetic" (no network needed) or "csv".
+# NOTE: swing strategies want a higher timeframe; intraday ones want 1.
 data:
   source: synthetic
-  days: 90
+  timeframe_minutes: 60       # hourly bars for the swing/trend ensemble
+  days: 400
   bars_per_day: 390
   seed: 42
   start_price: 5000.0
@@ -35,7 +44,7 @@ data:
   annual_vol: 0.20
   # For real data instead:
   # source: csv
-  # csv_path: data/es_1min.csv
+  # csv_path: data/mes_1min.csv
 
 dashboard:
   host: 127.0.0.1

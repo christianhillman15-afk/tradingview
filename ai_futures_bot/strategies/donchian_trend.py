@@ -22,6 +22,7 @@ from .base import Signal, Strategy
 
 class DonchianTrendStrategy(Strategy):
     name = "donchian_trend"
+    category = "trend"
     intraday = False
 
     def __init__(

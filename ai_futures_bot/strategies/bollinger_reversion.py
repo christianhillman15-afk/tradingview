@@ -22,6 +22,7 @@ from .base import Signal, Strategy
 
 class BollingerReversionStrategy(Strategy):
     name = "bollinger_reversion"
+    category = "reversion"
     intraday = False
 
     def __init__(

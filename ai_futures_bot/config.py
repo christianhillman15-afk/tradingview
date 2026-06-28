@@ -23,7 +23,8 @@ except ImportError:  # pragma: no cover
 class DataConfig:
     source: str = "synthetic"     # "synthetic" | "csv"
     csv_path: str | None = None
-    days: int = 60
+    timeframe_minutes: int = 60   # resample to this timeframe (1 = raw minutes)
+    days: int = 400
     bars_per_day: int = 390
     seed: int = 42
     start_price: float = 5000.0
@@ -39,8 +40,12 @@ class DashboardConfig:
 
 @dataclass
 class Config:
-    symbol: str = "ES"
-    strategy: str = "opening_range_breakout"
+    # Defaults: the flagship regime-aware ensemble on Micro E-mini S&P 500
+    # (MES), the right contract size for a $50k account, on an hourly timeframe.
+    # Intraday strategies (opening_range_breakout / vwap_reversion) should be run
+    # with timeframe_minutes=1 instead.
+    symbol: str = "MES"
+    strategy: str = "ensemble"
     strategy_params: dict[str, Any] = field(default_factory=dict)
     starting_cash: float = 50_000.0
     commission_per_contract: float = 2.50

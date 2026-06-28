@@ -221,6 +221,45 @@ class SyntheticDataGenerator:
         return bars
 
 
+def resample(bars: Sequence[Bar], minutes: int) -> list[Bar]:
+    """Aggregate bars into ``minutes``-minute OHLCV buckets, never crossing a
+    session boundary.
+
+    Trend/swing strategies misbehave on 1-minute bars (a 20-bar lookback is only
+    20 minutes), so they should be run on a higher timeframe. ``minutes`` larger
+    than a session collapses to one bar per session (a "daily" bar). A value of
+    ``<= 1`` returns the input unchanged.
+    """
+    if minutes <= 1:
+        return list(bars)
+    out: list[Bar] = []
+    cur_session: str | None = None
+    idx = 0
+    agg_session: str | None = None
+    agg_bucket: int | None = None
+    o = h = l = c = v = 0.0
+    ts = None
+    for b in bars:
+        if b.session_id != cur_session:
+            cur_session = b.session_id
+            idx = 0
+        bucket = idx // minutes
+        if ts is None or bucket != agg_bucket or b.session_id != agg_session:
+            if ts is not None:
+                out.append(Bar(ts, o, h, l, c, v))
+            ts, o, h, l, c, v = b.timestamp, b.open, b.high, b.low, b.close, b.volume
+            agg_bucket, agg_session = bucket, b.session_id
+        else:
+            h = max(h, b.high)
+            l = min(l, b.low)
+            c = b.close
+            v += b.volume
+        idx += 1
+    if ts is not None:
+        out.append(Bar(ts, o, h, l, c, v))
+    return out
+
+
 def stream(bars: Iterable[Bar]) -> Iterator[Bar]:
     """Yield bars one at a time (the live/backtest event loop interface)."""
     yield from bars

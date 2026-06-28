@@ -34,6 +34,8 @@ class Signal:
             derives one from ATR.
         target: Suggested take-profit price (optional).
         strength: Confidence in ``[0, 1]``; may scale position size.
+        trail_atr_mult: If set, the engine ratchets an ATR-based trailing stop at
+            this multiple of ATR for the life of the trade (never loosening it).
     """
 
     action: Action
@@ -41,6 +43,7 @@ class Signal:
     stop: float | None = None
     target: float | None = None
     strength: float = 1.0
+    trail_atr_mult: float | None = None
 
 
 class Strategy(ABC):
@@ -48,6 +51,9 @@ class Strategy(ABC):
 
     #: Human-readable strategy name (set by subclasses).
     name: str = "base"
+    #: Behavioural family, used by the ensemble's regime filter:
+    #: "trend" | "breakout" | "reversion" | "ml" | "other".
+    category: str = "other"
     #: If True the backtester/live loop flattens any open position at the end
     #: of each trading session (no overnight risk).
     intraday: bool = False

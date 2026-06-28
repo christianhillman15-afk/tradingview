@@ -22,6 +22,7 @@ from .base import Signal, Strategy
 
 class MacdMomentumStrategy(Strategy):
     name = "macd_momentum"
+    category = "trend"
     intraday = False
 
     def __init__(

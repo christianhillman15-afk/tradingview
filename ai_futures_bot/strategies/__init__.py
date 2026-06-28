@@ -11,11 +11,15 @@ from typing import Type
 
 from .base import Signal, Strategy
 from .bollinger_reversion import BollingerReversionStrategy
+from .bollinger_squeeze import BollingerSqueezeStrategy
 from .donchian_trend import DonchianTrendStrategy
+from .ensemble import EnsembleStrategy
 from .macd_momentum import MacdMomentumStrategy
 from .ml_ensemble import MLEnsembleStrategy
 from .opening_range_breakout import OpeningRangeBreakoutStrategy
+from .supertrend import SupertrendStrategy
 from .vwap_reversion import VwapReversionStrategy
+from .zscore_reversion import ZScoreReversionStrategy
 
 _REGISTRY: dict[str, Type[Strategy]] = {
     cls.name: cls
@@ -25,6 +29,10 @@ _REGISTRY: dict[str, Type[Strategy]] = {
         DonchianTrendStrategy,
         MacdMomentumStrategy,
         BollingerReversionStrategy,
+        SupertrendStrategy,
+        BollingerSqueezeStrategy,
+        ZScoreReversionStrategy,
+        EnsembleStrategy,
         MLEnsembleStrategy,
     ]
 }
@@ -59,5 +67,9 @@ __all__ = [
     "DonchianTrendStrategy",
     "MacdMomentumStrategy",
     "BollingerReversionStrategy",
+    "SupertrendStrategy",
+    "BollingerSqueezeStrategy",
+    "ZScoreReversionStrategy",
+    "EnsembleStrategy",
     "MLEnsembleStrategy",
 ]

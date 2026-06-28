@@ -30,6 +30,7 @@ from .base import Signal, Strategy
 
 class MLEnsembleStrategy(Strategy):
     name = "ml_ensemble"
+    category = "ml"
     intraday = False
 
     def __init__(
