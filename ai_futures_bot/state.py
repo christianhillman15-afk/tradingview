@@ -69,6 +69,79 @@ def snapshot(
     }
 
 
+def portfolio_snapshot(pr, *, generated_at: datetime | None = None) -> dict:
+    """Build a dashboard state document from a multi-market portfolio result.
+
+    Keeps the standard fields so the existing tabs render, and adds a
+    ``portfolio`` block (sleeves + correlation matrix) for the Portfolio tab.
+    """
+    from .contracts import get_contract
+
+    m = pr.metrics
+    curve = _downsample(pr.portfolio_equity, _MAX_CURVE_POINTS)
+    symbols = [s.symbol for s in pr.sleeves]
+    first_tv = _tv_symbol(get_contract(symbols[0])) if symbols else "CME_MINI:ES1!"
+
+    trades = []
+    for s in pr.sleeves:
+        for t in s.trades[-40:]:
+            d = t.to_dict()
+            d["strategy"] = s.symbol  # surface the market in the blotter
+            trades.append(d)
+    trades.sort(key=lambda d: d["exit_time"], reverse=True)
+
+    sleeves = []
+    for s in pr.sleeves:
+        sm = s.metrics
+        sleeves.append({
+            "symbol": s.symbol,
+            "start_capital": round(s.start_capital, 2),
+            "final_equity": sm["final_equity"],
+            "roi_pct": sm["roi_pct"],
+            "sharpe": sm["sharpe"],
+            "num_trades": sm["num_trades"],
+            "win_rate_pct": sm["win_rate_pct"],
+            "max_drawdown_pct": sm["max_drawdown_pct"],
+            "equity_curve": [[t.isoformat(), round(e, 2)] for t, e in _downsample(s.equity_curve, 200)],
+        })
+
+    return {
+        "mode": "portfolio",
+        "generated_at": (generated_at or _now()).isoformat(),
+        "symbol": "+".join(symbols) if symbols else "PORTFOLIO",
+        "contract_name": f"{len(symbols)}-market basket ({pr.weighting}-weighted)",
+        "exchange": "multi",
+        "tradingview_symbol": first_tv,
+        "strategy": pr.strategy,
+        "bars_processed": len(pr.portfolio_equity),
+        "last_price": round(curve[-1][1], 2) if curve else 0,
+        "last_bar_time": curve[-1][0].isoformat() if curve else None,
+        "account": {
+            "starting_equity": round(pr.starting_cash, 2),
+            "equity": m["final_equity"],
+            "cash": m["final_equity"],
+            "realized_pnl": m["net_profit"],
+            "unrealized_pnl": 0.0,
+            "roi_pct": m["roi_pct"],
+        },
+        "position": None,
+        "metrics": m,
+        "trades": trades[:_MAX_TRADES],
+        "equity_curve": [[t.isoformat(), round(e, 2)] for t, e in curve],
+        "events": [],
+        "risk": {},
+        "portfolio": {
+            "weighting": pr.weighting,
+            "avg_correlation": round(pr.avg_correlation, 3),
+            "mean_sleeve_sharpe": round(pr.mean_sleeve_sharpe, 3),
+            "diversification_ratio": round(pr.diversification_ratio, 3),
+            "symbols": symbols,
+            "correlation_matrix": pr.correlation_matrix,
+            "sleeves": sleeves,
+        },
+    }
+
+
 def write_state(path: str, state: dict) -> None:
     """Atomically write the state JSON (so the dashboard never reads a partial file)."""
     directory = os.path.dirname(os.path.abspath(path))

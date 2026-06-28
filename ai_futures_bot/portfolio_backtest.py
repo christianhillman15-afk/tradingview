@@ -51,6 +51,7 @@ class PortfolioResult:
     avg_correlation: float = 0.0
     mean_sleeve_sharpe: float = 0.0
     diversification_ratio: float = 0.0
+    correlation_matrix: list[list[float]] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -130,6 +131,7 @@ def portfolio_backtest(
     result.portfolio_equity = port_equity
     result.metrics = compute_metrics(port_equity, all_trades, starting_cash)
     result.avg_correlation = _avg_pairwise_correlation(sleeve_series)
+    result.correlation_matrix = _correlation_matrix(sleeve_series)
     sharpes = [s.metrics["sharpe"] for s in result.sleeves]
     result.mean_sleeve_sharpe = sum(sharpes) / len(sharpes) if sharpes else 0.0
     if result.mean_sleeve_sharpe != 0:
@@ -172,6 +174,21 @@ def _avg_pairwise_correlation(sleeve_series: list[list[float]]) -> float:
             if c is not None:
                 corrs.append(c)
     return sum(corrs) / len(corrs) if corrs else 0.0
+
+
+def _correlation_matrix(sleeve_series: list[list[float]]) -> list[list[float]]:
+    """Full pairwise correlation matrix of sleeve returns (1.0 on the diagonal)."""
+    returns = []
+    for eq in sleeve_series:
+        returns.append([eq[i] / eq[i - 1] - 1.0 for i in range(1, len(eq)) if eq[i - 1] > 0])
+    n = len(returns)
+    matrix = [[1.0 if i == j else 0.0 for j in range(n)] for i in range(n)]
+    for i in range(n):
+        for j in range(i + 1, n):
+            c = _pearson(returns[i], returns[j])
+            v = round(c, 3) if c is not None else 0.0
+            matrix[i][j] = matrix[j][i] = v
+    return matrix
 
 
 def _pearson(a: list[float], b: list[float]) -> float | None:

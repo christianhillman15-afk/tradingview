@@ -257,6 +257,24 @@ def test_single_market_portfolio_div_ratio_is_one():
     assert pr.diversification_ratio == pytest.approx(1.0, abs=1e-6)
 
 
+def test_portfolio_snapshot_shape():
+    from ai_futures_bot.portfolio_backtest import portfolio_backtest
+    from ai_futures_bot.state import portfolio_snapshot
+
+    pr = portfolio_backtest("donchian_trend", _basket(), starting_cash=90_000)
+    snap = portfolio_snapshot(pr)
+    assert snap["mode"] == "portfolio"
+    pb = snap["portfolio"]
+    assert len(pb["sleeves"]) == 3
+    assert len(pb["correlation_matrix"]) == 3 and len(pb["correlation_matrix"][0]) == 3
+    # diagonal is 1.0, matrix symmetric
+    for i in range(3):
+        assert pb["correlation_matrix"][i][i] == pytest.approx(1.0)
+        for j in range(3):
+            assert pb["correlation_matrix"][i][j] == pytest.approx(pb["correlation_matrix"][j][i])
+    assert set(pb["symbols"]) == {"MES", "MGC", "MCL"}
+
+
 @pytest.mark.parametrize("name", list_strategies())
 def test_every_strategy_survives_tiny_and_flat_data(name):
     """Regression: no strategy should crash when data is shorter than its

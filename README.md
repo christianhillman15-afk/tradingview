@@ -110,6 +110,7 @@ engine writes. Tabs:
 | **Overview** | KPI cards (Equity, Net P&L, ROI, Win Rate, Profit Factor, Max DD, Sharpe, Trades) + equity curve + recent activity |
 | **Live Chart** | TradingView Advanced Chart widget for the traded symbol (e.g. `CME_MINI:ES1!`) with VWAP & Bollinger studies |
 | **Positions** | Current open position (side, qty, entry, stop, target, unrealized) + live risk status |
+| **Portfolio** | Multi-market sleeve table + diversification stats + correlation heatmap (`portfolio --serve`) |
 | **Trades** | Full trade blotter — entry/exit, PnL, return %, exit reason |
 | **Performance** | Full metrics grid + drawdown chart |
 | **Strategy & Logs** | Active strategy details + a live event log |

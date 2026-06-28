@@ -50,6 +50,7 @@
     <button class="tab active" data-tab="overview">Overview</button>
     <button class="tab" data-tab="chart">Live Chart</button>
     <button class="tab" data-tab="positions">Positions</button>
+    <button class="tab" data-tab="portfolio">Portfolio</button>
     <button class="tab" data-tab="trades">Trades</button>
     <button class="tab" data-tab="performance">Performance</button>
     <button class="tab" data-tab="logs">Strategy &amp; Logs</button>
@@ -96,6 +97,34 @@
         <div class="card">
           <div class="card-head"><h3>Risk Status</h3></div>
           <div id="riskBox" class="risk-box"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PORTFOLIO -->
+    <section class="panel" id="tab-portfolio">
+      <div id="portfolioEmpty" class="card"><div class="empty" style="text-align:center;color:var(--muted);padding:30px">
+        No portfolio loaded. Run <code>python -m ai_futures_bot.cli portfolio --serve</code> to see the multi-market sleeves and correlation heatmap.
+      </div></div>
+      <div id="portfolioContent" style="display:none">
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-head"><h3>Sleeves</h3><span class="muted" id="pfSummary"></span></div>
+            <div class="table-wrap">
+              <table class="blotter">
+                <thead><tr><th>Market</th><th>Capital</th><th>ROI%</th><th>Sharpe</th><th>Win%</th><th>Trades</th><th>MaxDD%</th></tr></thead>
+                <tbody id="sleevesBody"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3>Diversification</h3></div>
+            <div id="divBox" class="risk-box"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Correlation Heatmap</h3><span class="muted">sleeve return correlations — low = good diversification</span></div>
+          <div id="corrHeatmap" class="heatmap"></div>
         </div>
       </div>
     </section>

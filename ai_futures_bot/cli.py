@@ -354,8 +354,17 @@ def cmd_portfolio(args) -> int:
           f"(portfolio Sharpe / mean single-market Sharpe)")
     if pr.diversification_ratio > 1.05:
         print("→ Diversification improved risk-adjusted return, as the research predicts.")
+
+    from .state import portfolio_snapshot, write_state
+
+    write_state(cfg.state_path, portfolio_snapshot(pr))
+    print(f"\nDashboard state written to {cfg.state_path}")
     print("\n⚠ Synthetic/illustrative. A live diversified futures portfolio needs capital "
           "for every sleeve to size; verify with real per-market data.")
+    if args.serve:
+        _serve(cfg)
+    else:
+        print(f"View the Portfolio tab:  python -m ai_futures_bot.cli dashboard --state {cfg.state_path}")
     return 0
 
 
@@ -633,6 +642,7 @@ def build_parser() -> argparse.ArgumentParser:
                       help="Comma-separated basket (default: a diversified micro basket "
                            "across equity indices, metals, energy, and FX)")
     p_pf.add_argument("--weighting", choices=["equal", "inverse_vol"], default="equal")
+    p_pf.add_argument("--serve", action="store_true", help="Serve the dashboard afterwards")
     p_pf.set_defaults(func=cmd_portfolio)
 
     p_cmp = sub.add_parser("compare", help="Backtest all strategies and rank them")

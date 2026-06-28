@@ -75,6 +75,7 @@ function render(s) {
   renderOverviewActivity(s);
   renderPosition(s);
   renderRisk(s);
+  renderPortfolio(s);
   renderTrades(s);
   renderMetrics(s);
   renderStrategy(s);
@@ -153,6 +154,69 @@ function renderRisk(s) {
     <div class="risk-row"><span>Today's realized P&L</span><span class="${cls(r.day_realized)}">${r.day_realized !== undefined ? fmtMoney(r.day_realized) : "—"}</span></div>
     <div class="risk-row"><span>Equity peak</span><span>${r.equity_peak !== undefined ? fmtMoney(r.equity_peak) : "—"}</span></div>
     <div class="risk-row"><span>Bars processed</span><span>${s.bars_processed ?? "—"}</span></div>`;
+}
+
+function renderPortfolio(s) {
+  const p = s.portfolio;
+  const empty = $("portfolioEmpty"), content = $("portfolioContent");
+  if (!p || !p.sleeves || !p.sleeves.length) {
+    empty.style.display = "";
+    content.style.display = "none";
+    return;
+  }
+  empty.style.display = "none";
+  content.style.display = "";
+
+  $("pfSummary").textContent = `${p.sleeves.length} markets · ${p.weighting}-weighted`;
+  $("sleevesBody").innerHTML = p.sleeves.map((sl) => `
+    <tr>
+      <td style="text-align:left"><span class="tag long">${sl.symbol}</span></td>
+      <td>${fmtMoney(sl.start_capital)}</td>
+      <td class="${cls(sl.roi_pct)}">${pct(sl.roi_pct)}</td>
+      <td class="${cls(sl.sharpe)}">${fmtNum(sl.sharpe, 2)}</td>
+      <td>${pct(sl.win_rate_pct)}</td>
+      <td>${sl.num_trades}</td>
+      <td class="neg">${pct(sl.max_drawdown_pct)}</td>
+    </tr>`).join("");
+
+  const dr = p.diversification_ratio;
+  $("divBox").innerHTML = `
+    <div class="risk-row"><span>Portfolio Sharpe</span><span class="${cls(s.metrics.sharpe)}">${fmtNum(s.metrics.sharpe, 2)}</span></div>
+    <div class="risk-row"><span>Mean single-market Sharpe</span><span>${fmtNum(p.mean_sleeve_sharpe, 2)}</span></div>
+    <div class="risk-row"><span>Diversification ratio</span><span class="pill ${dr > 1.05 ? "ok" : "bad"}">${fmtNum(dr, 2)}×</span></div>
+    <div class="risk-row"><span>Avg pairwise correlation</span><span>${fmtNum(p.avg_correlation, 3)}</span></div>
+    <div class="risk-row"><span>Portfolio ROI</span><span class="${cls(s.metrics.roi_pct)}">${pct(s.metrics.roi_pct)}</span></div>
+    <div class="risk-row"><span>Portfolio max drawdown</span><span class="neg">${pct(s.metrics.max_drawdown_pct)}</span></div>`;
+
+  renderHeatmap(p.symbols, p.correlation_matrix);
+}
+
+function corrColor(v) {
+  // +1 red, 0 dark, -1 blue
+  if (v >= 0) {
+    const a = Math.min(1, v);
+    return `rgba(255,91,110,${0.12 + 0.6 * a})`;
+  }
+  const a = Math.min(1, -v);
+  return `rgba(76,141,255,${0.12 + 0.6 * a})`;
+}
+
+function renderHeatmap(symbols, matrix) {
+  if (!symbols || !matrix) { $("corrHeatmap").innerHTML = ""; return; }
+  const n = symbols.length;
+  let html = '<table class="corr-table"><thead><tr><th></th>';
+  for (const s of symbols) html += `<th>${s}</th>`;
+  html += "</tr></thead><tbody>";
+  for (let i = 0; i < n; i++) {
+    html += `<tr><th>${symbols[i]}</th>`;
+    for (let j = 0; j < n; j++) {
+      const v = matrix[i][j];
+      html += `<td style="background:${corrColor(v)}" title="${symbols[i]}/${symbols[j]}: ${v}">${v.toFixed(2)}</td>`;
+    }
+    html += "</tr>";
+  }
+  html += "</tbody></table>";
+  $("corrHeatmap").innerHTML = html;
 }
 
 function renderTrades(s) {
