@@ -102,6 +102,10 @@ def _apply_common(cfg: Config, args) -> Config:
         cfg.data.csv_path = args.csv
     if getattr(args, "state", None):
         cfg.state_path = args.state
+    if getattr(args, "host", None):
+        cfg.dashboard.host = args.host
+    if getattr(args, "port", None):
+        cfg.dashboard.port = args.port
     if getattr(args, "set", None):
         cfg.strategy_params.update(_parse_overrides(args.set))
     return cfg
@@ -684,6 +688,8 @@ def _add_common(p: argparse.ArgumentParser) -> None:
                    help="Resample bars to N-minute timeframe (e.g. 60=hourly; swing strategies want this)")
     p.add_argument("--csv", help="Load bars from a CSV instead of synthetic data")
     p.add_argument("--state", help="Path to the dashboard state JSON")
+    p.add_argument("--host", help="Dashboard bind host (use 0.0.0.0 to expose on a server)")
+    p.add_argument("--port", type=int, help="Dashboard port (default 8000)")
     p.add_argument("--set", action="append", metavar="key=value",
                    help="Override a strategy parameter (repeatable)")
 
