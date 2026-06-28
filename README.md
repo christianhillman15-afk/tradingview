@@ -124,11 +124,12 @@ state shape, written to `runtime/state.json` by default.
 | `ml_ensemble` | AI/ML (RandomForest + GradientBoosting) | Swing |
 
 See **[STRATEGIES.md](STRATEGIES.md)** for the exact rules and the research
-sources behind each one. List them anytime:
+sources behind each one. List them, or rank them all on the same data:
 
 ```bash
 python -m ai_futures_bot.cli list-strategies
-python -m ai_futures_bot.cli list-contracts
+python -m ai_futures_bot.cli list-contracts          # 15+ futures across asset classes
+python -m ai_futures_bot.cli compare --symbol MES    # leaderboard: ROI/Sharpe/Sortino/PSR/PF/maxDD
 ```
 
 ## The AI/ML strategy
