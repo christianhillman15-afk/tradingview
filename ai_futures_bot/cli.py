@@ -28,7 +28,7 @@ from .data import Bar, SyntheticDataGenerator, load_csv, resample
 from .live import LiveTrader
 from .risk import RiskManager
 from .state import snapshot, write_state
-from .strategies import get_strategy, list_strategies
+from .strategies import get_strategy, list_strategies, strategy_class
 
 
 # --------------------------------------------------------------------------
@@ -268,6 +268,56 @@ def cmd_train(args) -> int:
     return 0
 
 
+def cmd_compare(args) -> int:
+    cfg = _load_config(args)
+    spec = get_contract(cfg.symbol)
+    # Load raw (minute) data once; resample per strategy as needed.
+    raw_cfg = Config.from_dict(cfg.to_dict())
+    raw_cfg.data.timeframe_minutes = 1
+    raw = _load_bars(raw_cfg)
+    swing_tf = cfg.data.timeframe_minutes if cfg.data.timeframe_minutes > 1 else 60
+
+    names = args.strategies.split(",") if args.strategies else list_strategies()
+    rows = []
+    for name in names:
+        name = name.strip()
+        try:
+            intraday = strategy_class(name).intraday
+        except KeyError:
+            print(f"  (skipping unknown strategy {name!r})")
+            continue
+        tf = 1 if intraday else swing_tf
+        bars = raw if tf == 1 else resample(raw, tf)
+        strat = get_strategy(name, **(cfg.strategy_params if name == cfg.strategy else {}))
+        risk = _build_risk(cfg)
+        try:
+            res = Backtester(
+                strat, spec, risk, starting_cash=cfg.starting_cash,
+                commission_per_contract=cfg.commission_per_contract, slippage_ticks=cfg.slippage_ticks,
+            ).run(bars)
+        except Exception as exc:  # keep the leaderboard going if one strategy errors
+            print(f"  ({name} failed: {exc})")
+            continue
+        m = res.metrics
+        rows.append((name, tf, m))
+
+    key = args.objective
+    def _sort_val(m):
+        v = m.get(key, 0)
+        return -1e9 if v == "inf" else float(v)
+    rows.sort(key=lambda r: _sort_val(r[2]), reverse=True)
+
+    print(f"\n=== Strategy leaderboard on {cfg.symbol} (ranked by {key}) ===")
+    print(f"{'STRATEGY':<22}{'TF':>4}{'TRADES':>8}{'ROI%':>9}{'SHARPE':>8}"
+          f"{'SORTINO':>9}{'PSR%':>7}{'PF':>7}{'MAXDD%':>8}")
+    for name, tf, m in rows:
+        pf = "inf" if m["profit_factor"] == "inf" else f"{m['profit_factor']:.2f}"
+        print(f"{name:<22}{tf:>4}{m['num_trades']:>8}{m['roi_pct']:>9.2f}{m['sharpe']:>8.2f}"
+              f"{m['sortino']:>9.2f}{m.get('psr', 0)*100:>7.0f}{pf:>7}{m['max_drawdown_pct']:>8.2f}")
+    print("\n⚠ Synthetic/illustrative — confirm with `walkforward` and real data before trusting.")
+    return 0
+
+
 def cmd_montecarlo(args) -> int:
     cfg = _load_config(args)
     spec = get_contract(cfg.symbol)
@@ -443,6 +493,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_tr.add_argument("--out", default="runtime/model.pkl", help="Output model path")
     p_tr.add_argument("--horizon", type=int, default=10, help="Label horizon in bars")
     p_tr.set_defaults(func=cmd_train)
+
+    p_cmp = sub.add_parser("compare", help="Backtest all strategies and rank them")
+    _add_common(p_cmp)
+    p_cmp.add_argument("--strategies", help="Comma-separated subset (default: all)")
+    p_cmp.add_argument("--objective", default="sharpe",
+                       choices=["sharpe", "sortino", "calmar", "psr", "roi_pct", "profit_factor", "net_profit"])
+    p_cmp.set_defaults(func=cmd_compare)
 
     p_mc = sub.add_parser("montecarlo", help="Monte Carlo stress test of the trade sequence")
     _add_common(p_mc)
