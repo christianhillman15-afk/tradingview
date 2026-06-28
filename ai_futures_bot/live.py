@@ -97,6 +97,30 @@ class LiveTrader:
                 on_update(final)
         return self.portfolio
 
+    def seed_history(self, bars: list[Bar]) -> None:
+        """Warm up the indicator buffer without trading (for a fresh account)."""
+        self._buffer = list(bars)[-self.history_window:]
+
+    def export_account(self, feed=None) -> dict:
+        """Serialize the full account for persistence/resume."""
+        from .data import bar_to_dict
+
+        acct = {
+            "portfolio": self.portfolio.export_state(),
+            "buffer": [bar_to_dict(b) for b in self._buffer[-self.history_window:]],
+            "bars_processed": self._bars_processed,
+        }
+        if feed is not None:
+            acct["feed"] = feed.export()
+        return acct
+
+    def restore_account(self, account: dict) -> None:
+        from .data import bar_from_dict
+
+        self.portfolio.restore_state(account.get("portfolio", {}))
+        self._buffer = [bar_from_dict(d) for d in account.get("buffer", [])]
+        self._bars_processed = int(account.get("bars_processed", 0))
+
     def build_state(self, last_bar: Bar) -> dict:
         return snapshot(
             portfolio=self.portfolio,

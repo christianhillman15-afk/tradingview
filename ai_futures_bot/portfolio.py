@@ -96,6 +96,25 @@ class Trade:
             "bars_held": self.bars_held,
         }
 
+    @classmethod
+    def from_dict(cls, d: dict) -> "Trade":
+        return cls(
+            strategy=d.get("strategy", ""),
+            side=d["side"],
+            quantity=int(d["quantity"]),
+            entry_time=datetime.fromisoformat(d["entry_time"]),
+            entry_price=float(d["entry_price"]),
+            exit_time=datetime.fromisoformat(d["exit_time"]),
+            exit_price=float(d["exit_price"]),
+            pnl=float(d["pnl"]),
+            commission=float(d.get("commission", 0.0)),
+            entry_reason=d.get("entry_reason", ""),
+            exit_reason=d.get("exit_reason", ""),
+            mfe=float(d.get("mfe", 0.0)),
+            mae=float(d.get("mae", 0.0)),
+            bars_held=int(d.get("bars_held", 0)),
+        )
+
 
 class Portfolio:
     """Cash + at most one open position, with full PnL accounting."""
@@ -199,6 +218,40 @@ class Portfolio:
     @property
     def realized_pnl(self) -> float:
         return self.cash - self.starting_cash
+
+    # --- persistence (live paper account) -----------------------------
+    def export_state(self) -> dict:
+        pos = self.position
+        return {
+            "starting_cash": self.starting_cash,
+            "cash": self.cash,
+            "last_price": self._last_price,
+            "position": None if pos is None else {
+                "side": pos.side, "quantity": pos.quantity, "entry_price": pos.entry_price,
+                "entry_time": pos.entry_time.isoformat(), "stop": pos.stop, "target": pos.target,
+                "strategy": pos.strategy, "reason": pos.reason, "trail_atr_mult": pos.trail_atr_mult,
+                "mfe": pos.mfe, "mae": pos.mae, "bars_held": pos.bars_held,
+            },
+            "trades": [t.to_dict() for t in self.trades],
+            "equity_curve": [[t.isoformat(), e] for t, e in self.equity_curve[-2000:]],
+        }
+
+    def restore_state(self, d: dict) -> None:
+        self.starting_cash = d.get("starting_cash", self.starting_cash)
+        self.cash = d.get("cash", self.starting_cash)
+        self._last_price = d.get("last_price", 0.0)
+        self.trades = [Trade.from_dict(t) for t in d.get("trades", [])]
+        self.equity_curve = [
+            (datetime.fromisoformat(ts), float(e)) for ts, e in d.get("equity_curve", [])
+        ]
+        p = d.get("position")
+        self.position = None if p is None else Position(
+            side=int(p["side"]), quantity=int(p["quantity"]), entry_price=float(p["entry_price"]),
+            entry_time=datetime.fromisoformat(p["entry_time"]), stop=p.get("stop"), target=p.get("target"),
+            strategy=p.get("strategy", ""), reason=p.get("reason", ""),
+            trail_atr_mult=p.get("trail_atr_mult"), mfe=p.get("mfe", 0.0), mae=p.get("mae", 0.0),
+            bars_held=int(p.get("bars_held", 0)),
+        )
 
     def open_position_dict(self, price: float | None = None) -> dict | None:
         if self.position is None:

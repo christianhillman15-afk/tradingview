@@ -260,6 +260,74 @@ def resample(bars: Sequence[Bar], minutes: int) -> list[Bar]:
     return out
 
 
+def bar_to_dict(b: Bar) -> dict:
+    return {
+        "timestamp": b.timestamp.isoformat(),
+        "open": b.open, "high": b.high, "low": b.low, "close": b.close, "volume": b.volume,
+    }
+
+
+def bar_from_dict(d: dict, *, tz: timezone = timezone.utc) -> Bar:
+    return Bar(
+        timestamp=_parse_ts(str(d["timestamp"]), tz),
+        open=float(d["open"]), high=float(d["high"]), low=float(d["low"]),
+        close=float(d["close"]), volume=float(d["volume"]),
+    )
+
+
+class LiveFeed:
+    """Real-time bar generator: produces one continuing GBM bar per call,
+    timestamped by the caller. Used by the live paper-trading runner so there is
+    a steadily-updating price even when a real market feed is unavailable.
+
+    Deterministic given a seed (LCG + Box-Muller), so a paused/resumed session
+    can carry its price and RNG state forward.
+    """
+
+    def __init__(
+        self,
+        start_price: float = 5000.0,
+        *,
+        annual_vol: float = 0.20,
+        annual_drift: float = 0.05,
+        bars_per_year: float = 98_280.0,   # ~252 * 390 (minute-ish)
+        seed: int = 12345,
+    ) -> None:
+        self.price = start_price
+        self._state = seed & 0xFFFFFFFF
+        self.mu = annual_drift / bars_per_year
+        self.sigma = annual_vol / math.sqrt(bars_per_year)
+
+    def _rand(self) -> float:
+        self._state = (1664525 * self._state + 1013904223) & 0xFFFFFFFF
+        return self._state / 0x100000000
+
+    def _gauss(self) -> float:
+        u1 = max(self._rand(), 1e-12)
+        u2 = self._rand()
+        return math.sqrt(-2.0 * math.log(u1)) * math.cos(2.0 * math.pi * u2)
+
+    def next_bar(self, ts: datetime) -> Bar:
+        o = self.price
+        ret = self.mu + self._gauss() * self.sigma
+        c = o * math.exp(ret)
+        wick = abs(self._gauss()) * self.sigma * o * 0.6
+        hi = max(o, c) + wick
+        lo = min(o, c) - wick
+        vol = round(1000 * (0.7 + 0.6 * self._rand()))
+        self.price = c
+        return Bar(ts, round(o, 2), round(hi, 2), round(lo, 2), round(c, 2), vol)
+
+    def export(self) -> dict:
+        return {"price": self.price, "state": self._state, "mu": self.mu, "sigma": self.sigma}
+
+    def restore(self, d: dict) -> None:
+        self.price = d.get("price", self.price)
+        self._state = int(d.get("state", self._state))
+        self.mu = d.get("mu", self.mu)
+        self.sigma = d.get("sigma", self.sigma)
+
+
 def stream(bars: Iterable[Bar]) -> Iterator[Bar]:
     """Yield bars one at a time (the live/backtest event loop interface)."""
     yield from bars

@@ -246,6 +246,88 @@ def cmd_live(args) -> int:
     return 0
 
 
+def cmd_papertrade(args) -> int:
+    import time as _time
+    from datetime import datetime, timedelta, timezone
+
+    from .account import load_account, save_account
+    from .data import LiveFeed
+
+    cfg = _load_config(args)
+    if getattr(args, "balance", None) is None:
+        cfg.starting_cash = 50_000.0
+    spec = get_contract(cfg.symbol)
+    strategy = get_strategy(cfg.strategy, **cfg.strategy_params)
+    risk = _build_risk(cfg)
+    trader = LiveTrader(
+        strategy, spec, risk, starting_cash=cfg.starting_cash,
+        commission_per_contract=cfg.commission_per_contract, slippage_ticks=cfg.slippage_ticks,
+        state_path=cfg.state_path, history_window=args.window, update_every=1,
+    )
+    feed = LiveFeed(
+        start_price=_TYPICAL_PRICE.get(cfg.symbol, cfg.data.start_price),
+        annual_vol=cfg.data.annual_vol, annual_drift=cfg.data.annual_drift, seed=cfg.data.seed,
+    )
+
+    acct_path = args.account
+    created_at = None
+    existing = None if args.reset else load_account(acct_path)
+    if existing and existing.get("symbol") == cfg.symbol and existing.get("portfolio"):
+        trader.restore_account(existing)
+        feed.restore(existing.get("feed", {}))
+        created_at = existing.get("created_at")
+        eq = trader.portfolio.equity(feed.price)
+        print(f"Resumed paper account: equity ${eq:,.2f}, {len(trader.portfolio.trades)} trades "
+              f"(opened {created_at[:10] if created_at else '?'}).")
+    else:
+        now = datetime.now(timezone.utc)
+        warm = [feed.next_bar(now - timedelta(minutes=(args.window - k))) for k in range(args.window)]
+        trader.seed_history(warm)
+        print(f"New ${cfg.starting_cash:,.0f} paper account on {cfg.symbol} / {cfg.strategy} "
+              f"(warmed up on {args.window} bars).")
+
+    if args.serve:
+        _serve(cfg, background=True)
+
+    print(f"LIVE paper trading — {args.interval}s/bar"
+          + (f", {args.bars} bars then stop" if args.bars > 0 else ", until Ctrl-C") + ".")
+    prev_session = None
+    n = 0
+    try:
+        while args.bars <= 0 or n < args.bars:
+            ts = datetime.now(timezone.utc)
+            bar = feed.next_bar(ts)
+            session_end = prev_session is not None and bar.session_id != prev_session
+            trader.on_bar(bar, session_end and trader.strategy.intraday)
+            prev_session = bar.session_id
+            state = trader.build_state(bar)
+            write_state(cfg.state_path, state)
+            save_account(acct_path, trader.export_account(feed),
+                         symbol=cfg.symbol, strategy=cfg.strategy, created_at=created_at)
+            created_at = created_at or load_account(acct_path).get("created_at")
+            a = state["account"]
+            pos = state["position"]
+            sys.stdout.write(
+                f"\r {ts.strftime('%H:%M:%S')}  px {feed.price:>9.2f}  equity ${a['equity']:>11,.2f}  "
+                f"ROI {a['roi_pct']:+6.2f}%  pos {(pos['side'] + ' x' + str(pos['quantity'])) if pos else 'flat':<10}  "
+                f"trades {state['metrics']['num_trades']:>3}   ")
+            sys.stdout.flush()
+            n += 1
+            if args.interval > 0:
+                _time.sleep(args.interval)
+    except KeyboardInterrupt:
+        print("\nStopped.")
+    save_account(acct_path, trader.export_account(feed),
+                 symbol=cfg.symbol, strategy=cfg.strategy, created_at=created_at)
+    print(f"\nAccount persisted to {acct_path} (resume by re-running; --reset to start fresh).")
+    if args.serve and args.bars <= 0:
+        try:
+            threading.Event().wait()
+        except KeyboardInterrupt:
+            pass
+    return 0
+
+
 def cmd_train(args) -> int:
     cfg = _load_config(args)
     bars = _load_bars(cfg)
@@ -627,6 +709,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_live.add_argument("--update-every", type=int, default=5, help="Write state every N bars")
     p_live.add_argument("--serve", action="store_true", help="Serve the dashboard concurrently")
     p_live.set_defaults(func=cmd_live)
+
+    p_pt = sub.add_parser("papertrade", help="Run a continuous, persistent $50k live paper account")
+    _add_common(p_pt)
+    p_pt.add_argument("--account", default="runtime/account.json", help="Persistent account file")
+    p_pt.add_argument("--interval", type=float, default=1.0, help="Seconds per live bar (0 = as fast as possible)")
+    p_pt.add_argument("--bars", type=int, default=0, help="Stop after N bars (0 = run until Ctrl-C)")
+    p_pt.add_argument("--window", type=int, default=300, help="Indicator warm-up / history window")
+    p_pt.add_argument("--reset", action="store_true", help="Start a fresh account (ignore saved state)")
+    p_pt.add_argument("--serve", action="store_true", help="Serve the dashboard concurrently")
+    p_pt.set_defaults(func=cmd_papertrade)
 
     p_tr = sub.add_parser("train", help="Train and save the ML ensemble model")
     _add_common(p_tr)
