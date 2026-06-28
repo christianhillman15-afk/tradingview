@@ -16,6 +16,7 @@ from .donchian_trend import DonchianTrendStrategy
 from .ensemble import EnsembleStrategy
 from .macd_momentum import MacdMomentumStrategy
 from .ml_ensemble import MLEnsembleStrategy
+from .ml_meta import MetaLabelStrategy
 from .opening_range_breakout import OpeningRangeBreakoutStrategy
 from .supertrend import SupertrendStrategy
 from .tsmom import TimeSeriesMomentumStrategy
@@ -36,6 +37,7 @@ _REGISTRY: dict[str, Type[Strategy]] = {
         TimeSeriesMomentumStrategy,
         EnsembleStrategy,
         MLEnsembleStrategy,
+        MetaLabelStrategy,
     ]
 }
 
@@ -75,4 +77,5 @@ __all__ = [
     "TimeSeriesMomentumStrategy",
     "EnsembleStrategy",
     "MLEnsembleStrategy",
+    "MetaLabelStrategy",
 ]

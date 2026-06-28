@@ -515,6 +515,31 @@ def cmd_walkforward(args) -> int:
     return 0
 
 
+def cmd_fetch(args) -> int:
+    from .data import write_csv
+    from .realdata import fetch_yahoo, yahoo_ticker
+
+    out = args.out or f"data/{args.symbol.lower()}_{args.interval}.csv"
+    print(f"Fetching {args.symbol} ({yahoo_ticker(args.symbol)}) "
+          f"range={args.range} interval={args.interval} from Yahoo Finance…")
+    try:
+        bars = fetch_yahoo(args.symbol, range_=args.range, interval=args.interval)
+    except Exception as exc:
+        raise SystemExit(
+            f"Fetch failed: {exc}\n"
+            "Free data endpoints rate-limit shared/cloud IPs — try again later or "
+            "run this from your own machine. The CSV format is: "
+            "timestamp,open,high,low,close,volume"
+        )
+    if not bars:
+        raise SystemExit("No bars returned (check the symbol / range / interval).")
+    write_csv(out, bars)
+    print(f"Saved {len(bars)} bars to {out}  ({bars[0].timestamp.date()} → {bars[-1].timestamp.date()})")
+    print(f"Backtest it with:  python -m ai_futures_bot.cli backtest --symbol {args.symbol} "
+          f"--csv {out} --timeframe 1")
+    return 0
+
+
 def cmd_dashboard(args) -> int:
     cfg = _load_config(args)
     _serve(cfg)
@@ -643,6 +668,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_wf.add_argument("--objective", default="sharpe",
                       choices=["sharpe", "sortino", "calmar", "profit_factor", "net_profit", "expectancy"])
     p_wf.set_defaults(func=cmd_walkforward)
+
+    p_fetch = sub.add_parser("fetch", help="Download real OHLCV history (Yahoo Finance) to CSV")
+    p_fetch.add_argument("--symbol", required=True, help="Contract root symbol (e.g. ES, MES)")
+    p_fetch.add_argument("--range", default="2y", help="1mo/3mo/6mo/1y/2y/5y/10y/max")
+    p_fetch.add_argument("--interval", default="1d", help="1d/1h/30m/15m/5m/1m (intraday is limited)")
+    p_fetch.add_argument("--out", help="Output CSV path (default: data/<symbol>_<interval>.csv)")
+    p_fetch.set_defaults(func=cmd_fetch)
 
     p_dash = sub.add_parser("dashboard", help="Serve the dashboard from a state file")
     _add_common(p_dash)

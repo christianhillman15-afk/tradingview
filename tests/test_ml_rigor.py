@@ -60,6 +60,27 @@ def test_purged_kfold_no_leakage():
 
 
 @pytest.mark.skipif(importlib.util.find_spec("sklearn") is None, reason="sklearn not installed")
+def test_meta_labeling_runs_and_filters():
+    from ai_futures_bot.backtester import Backtester
+    from ai_futures_bot.contracts import get_contract
+    from ai_futures_bot.risk import RiskConfig, RiskManager
+    from ai_futures_bot.strategies import get_strategy
+
+    bars = resample(SyntheticDataGenerator(seed=5).generate(days=500), 60)
+    spec = get_contract("MES")
+    meta = Backtester(get_strategy("ml_meta", primary="supertrend"), spec,
+                      RiskManager(config=RiskConfig()), starting_cash=50_000).run(bars)
+    # Runs cleanly with invariants intact.
+    assert meta.portfolio.position is None
+    assert meta.portfolio.realized_pnl == pytest.approx(sum(t.pnl for t in meta.trades), abs=1e-6)
+    # Meta only trades the held-out region, so it should not exceed the primary's
+    # total signal count run over the same data.
+    primary = Backtester(get_strategy("supertrend"), spec,
+                         RiskManager(config=RiskConfig()), starting_cash=50_000).run(bars)
+    assert meta.metrics["num_trades"] <= primary.metrics["num_trades"] + 2
+
+
+@pytest.mark.skipif(importlib.util.find_spec("sklearn") is None, reason="sklearn not installed")
 def test_purged_cv_score_returns_probability():
     from ai_futures_bot.ml.cv import purged_cv_score
     from ai_futures_bot.ml.features import build_features
