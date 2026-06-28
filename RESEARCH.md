@@ -127,10 +127,16 @@ labels.
 
 ## Prioritised roadmap (highest leverage first)
 
-1. **Multi-market portfolio backtesting with volatility-parity sizing** — the
-   single biggest Sharpe lever per the research (diversification + vol targeting).
+1. **Multi-market portfolio backtesting** — done (`portfolio` command /
+   `portfolio_backtest.py`): runs a strategy across a diversified basket as
+   risk-balanced sleeves, with equal or inverse-volatility weighting, and reports
+   average pairwise correlation and the diversification ratio. On the synthetic
+   demo, individual markets swing −20%…+33% but the basket is smooth with ~3%
+   drawdown — the diversification benefit the research predicts.
 2. **12-month time-series momentum** strategy — done (`tsmom`).
-3. **Volatility-target sizing mode** in the risk manager.
+3. **Volatility-target sizing mode** in the risk manager (inverse-vol capital
+   weighting is available at the portfolio level; per-trade vol-target sizing is
+   the next step).
 4. **MinBTL / DSR gating** surfaced everywhere a search happens — done in
    `optimize`.
 5. **Purged/combinatorial CV + triple-barrier labeling** for the ML strategy.

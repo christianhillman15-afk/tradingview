@@ -269,6 +269,79 @@ def cmd_train(args) -> int:
     return 0
 
 
+# Approximate real price levels so synthetic notionals (price × point value) are
+# realistic per contract, which keeps position sizing sane across markets.
+_TYPICAL_PRICE = {
+    "ES": 5000, "MES": 5000, "NQ": 18000, "MNQ": 18000, "YM": 40000, "MYM": 40000,
+    "RTY": 2200, "M2K": 2200, "CL": 75, "MCL": 75, "BZ": 80, "NG": 3.0,
+    "GC": 2150, "MGC": 2150, "SI": 26, "SIL": 26, "HG": 4.2, "MHG": 4.2, "PL": 950,
+    "6E": 1.08, "M6E": 1.08, "6J": 0.0067, "6B": 1.27, "6A": 0.66, "M6A": 0.66,
+    "6C": 0.73, "6S": 1.12, "6N": 0.60, "ZN": 110, "ZB": 118, "ZT": 102, "ZF": 107,
+    "TN": 112, "UB": 125, "ZC": 450, "ZS": 1300, "ZW": 550, "KE": 580, "ZL": 45,
+    "ZM": 330, "ZO": 360, "LE": 185, "GF": 250, "HE": 90, "KC": 230, "SB": 20,
+    "CC": 8000, "CT": 70, "OJ": 350, "BTC": 65000, "MBT": 65000,
+}
+
+
+def _portfolio_bars(cfg: Config, symbols: list[str]) -> dict:
+    """Generate per-symbol synthetic data with varied seeds, volatilities, and
+    realistic price levels so the markets are genuinely low-correlation (the
+    source of the diversification benefit) and notionals are sane. Real use
+    would supply per-symbol CSVs instead."""
+    out: dict = {}
+    for i, sym in enumerate(symbols):
+        gen = SyntheticDataGenerator(
+            seed=cfg.data.seed + i * 101,
+            start_price=_TYPICAL_PRICE.get(sym, cfg.data.start_price),
+            annual_drift=cfg.data.annual_drift,
+            annual_vol=0.12 + 0.05 * (i % 5),   # 12%–32% across markets
+        )
+        bars = gen.generate(days=cfg.data.days, bars_per_day=cfg.data.bars_per_day)
+        if cfg.data.timeframe_minutes > 1:
+            bars = resample(bars, cfg.data.timeframe_minutes)
+        out[sym] = bars
+    return out
+
+
+def cmd_portfolio(args) -> int:
+    cfg = _load_config(args)
+    from .portfolio_backtest import portfolio_backtest
+
+    # A diversified multi-market portfolio needs enough capital for every sleeve
+    # to size a contract; default higher than the single-strategy $50k account.
+    if getattr(args, "balance", None) is None:
+        cfg.starting_cash = 150_000.0
+    symbols = [s.strip().upper() for s in args.symbols.split(",") if s.strip()]
+    for s in symbols:
+        get_contract(s)  # validate up front
+    bars = _portfolio_bars(cfg, symbols)
+    pr = portfolio_backtest(
+        cfg.strategy, bars, starting_cash=cfg.starting_cash, weighting=args.weighting,
+        strategy_params=cfg.strategy_params, risk_config=cfg.risk,
+        commission_per_contract=cfg.commission_per_contract, slippage_ticks=cfg.slippage_ticks,
+    )
+    print(f"\n=== Portfolio backtest: {cfg.strategy} across {len(symbols)} markets "
+          f"({args.weighting} weighted) ===")
+    print(f"{'SLEEVE':<8}{'CAPITAL':>12}{'ROI%':>9}{'SHARPE':>8}{'TRADES':>8}{'MAXDD%':>8}")
+    for s in pr.sleeves:
+        m = s.metrics
+        print(f"{s.symbol:<8}{s.start_capital:>12,.0f}{m['roi_pct']:>9.2f}{m['sharpe']:>8.2f}"
+              f"{m['num_trades']:>8}{m['max_drawdown_pct']:>8.2f}")
+    m = pr.metrics
+    print(f"\nPORTFOLIO: ${cfg.starting_cash:,.0f} → ${m['final_equity']:,.0f} "
+          f"({m['roi_pct']:+.2f}%), Sharpe {m['sharpe']}, Sortino {m['sortino']}, "
+          f"maxDD {m['max_drawdown_pct']:.1f}%, PSR {m.get('psr',0)*100:.0f}%")
+    print(f"Avg pairwise correlation : {pr.avg_correlation:.3f}")
+    print(f"Mean single-market Sharpe: {pr.mean_sleeve_sharpe:.2f}")
+    print(f"Diversification ratio    : {pr.diversification_ratio:.2f}x "
+          f"(portfolio Sharpe / mean single-market Sharpe)")
+    if pr.diversification_ratio > 1.05:
+        print("→ Diversification improved risk-adjusted return, as the research predicts.")
+    print("\n⚠ Synthetic/illustrative. A live diversified futures portfolio needs capital "
+          "for every sleeve to size; verify with real per-market data.")
+    return 0
+
+
 def cmd_compare(args) -> int:
     cfg = _load_config(args)
     spec = get_contract(cfg.symbol)
@@ -509,6 +582,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_tr.add_argument("--out", default="runtime/model.pkl", help="Output model path")
     p_tr.add_argument("--horizon", type=int, default=10, help="Label horizon in bars")
     p_tr.set_defaults(func=cmd_train)
+
+    p_pf = sub.add_parser("portfolio", help="Backtest a strategy across a multi-market basket")
+    _add_common(p_pf)
+    p_pf.add_argument("--symbols", default="MES,MYM,M2K,MGC,MCL,M6E",
+                      help="Comma-separated basket (default: a diversified micro basket "
+                           "across equity indices, metals, energy, and FX)")
+    p_pf.add_argument("--weighting", choices=["equal", "inverse_vol"], default="equal")
+    p_pf.set_defaults(func=cmd_portfolio)
 
     p_cmp = sub.add_parser("compare", help="Backtest all strategies and rank them")
     _add_common(p_cmp)

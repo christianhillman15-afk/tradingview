@@ -89,7 +89,16 @@ python -m ai_futures_bot.cli optimize --strategy supertrend \
 
 # Monte Carlo stress test: probability of profit, risk of ruin, drawdown spread
 python -m ai_futures_bot.cli montecarlo --strategy ensemble --simulations 5000
+
+# Multi-market portfolio: run a strategy across a diversified basket
+python -m ai_futures_bot.cli portfolio --strategy ensemble --weighting inverse_vol
 ```
+
+The `portfolio` command is the research's #1 lever: a single market gives a
+trend Sharpe of only ~0.4, but combining low-correlation markets with
+risk-balanced sizing is what lifts portfolio Sharpe. It reports the average
+pairwise correlation and the **diversification ratio** (portfolio Sharpe ÷ mean
+single-market Sharpe).
 
 ## The dashboard
 
@@ -216,6 +225,7 @@ ai_futures_bot/
   backtester.py       Event-driven backtest driver
   live.py             Streaming paper trader (writes dashboard state)
   metrics.py          ROI, win rate, profit factor, Sharpe, Sortino, Calmar, exposure, ...
+  portfolio_backtest.py  Multi-market portfolio backtest (diversification + risk weighting)
   walkforward.py      Walk-forward out-of-sample validation
   optimize.py         Grid/random parameter search (+ Deflated Sharpe overfit check)
   montecarlo.py       Monte Carlo trade-bootstrap (risk of ruin, drawdown distribution)

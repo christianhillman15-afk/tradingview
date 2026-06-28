@@ -216,3 +216,42 @@ def test_tsmom_runs(hourly_bars):
     res = Backtester(get_strategy("tsmom", lookback=150), spec, risk, starting_cash=50_000).run(hourly_bars)
     assert res.metrics["num_trades"] >= 0
     assert res.portfolio.realized_pnl == pytest.approx(sum(t.pnl for t in res.trades), abs=1e-6)
+
+
+# --- multi-market portfolio backtest ------------------------------------
+def _basket():
+    out = {}
+    for i, sym in enumerate(["MES", "MGC", "MCL"]):
+        price = {"MES": 5000, "MGC": 2150, "MCL": 75}[sym]
+        bars = SyntheticDataGenerator(seed=5 + i * 101, start_price=price,
+                                      annual_vol=0.15 + 0.05 * i).generate(days=200)
+        out[sym] = resample(bars, 60)
+    return out
+
+
+def test_portfolio_backtest_diversifies():
+    from ai_futures_bot.portfolio_backtest import portfolio_backtest
+
+    pr = portfolio_backtest("donchian_trend", _basket(), starting_cash=90_000)
+    assert len(pr.sleeves) == 3
+    assert len(pr.portfolio_equity) > 10
+    assert "sharpe" in pr.metrics
+    # Synthetic markets are independent -> near-zero average correlation.
+    assert abs(pr.avg_correlation) < 0.3
+    # Each sleeve gets an equal slice of capital.
+    assert pr.sleeves[0].start_capital == pytest.approx(30_000)
+
+
+def test_portfolio_inverse_vol_weighting_sums_to_capital():
+    from ai_futures_bot.portfolio_backtest import portfolio_backtest
+
+    pr = portfolio_backtest("donchian_trend", _basket(), starting_cash=90_000, weighting="inverse_vol")
+    assert sum(s.start_capital for s in pr.sleeves) == pytest.approx(90_000, abs=1.0)
+
+
+def test_single_market_portfolio_div_ratio_is_one():
+    from ai_futures_bot.portfolio_backtest import portfolio_backtest
+
+    one = {"MES": _basket()["MES"]}
+    pr = portfolio_backtest("donchian_trend", one, starting_cash=50_000)
+    assert pr.diversification_ratio == pytest.approx(1.0, abs=1e-6)
