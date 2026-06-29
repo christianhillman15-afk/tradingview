@@ -1,13 +1,14 @@
 # AI Futures Bot — live paper-trading container.
-# Builds a lean image (pure-Python core). To use the ML strategies
-# (ml_ensemble / ml_meta), uncomment the numpy/scikit-learn install below.
+# The core, dashboard, and papertrade run on the Python STANDARD LIBRARY only,
+# so this image needs no pip install and builds offline. Optional extras:
+#   - PyYAML        -> only if you pass a YAML --config file
+#   - numpy/sklearn -> only for the ML strategies (ml_ensemble / ml_meta)
+# Uncomment the RUN line to add them.
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Core only needs PyYAML. Uncomment the second line for the ML strategies.
-RUN pip install --no-cache-dir "PyYAML>=6.0"
-# RUN pip install --no-cache-dir numpy scikit-learn
+# RUN pip install --no-cache-dir "PyYAML>=6.0" numpy scikit-learn
 
 COPY ai_futures_bot ./ai_futures_bot
 COPY examples ./examples
