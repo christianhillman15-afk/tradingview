@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Futures Bot — Dashboard</title>
+  <link rel="preconnect" href="https://s3.tradingview.com" />
+  <link rel="stylesheet" href="/static/app.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">◆</div>
+      <div>
+        <div class="brand-title">AI Futures Bot</div>
+        <div class="brand-sub" id="brandSub">paper trading · futures</div>
+      </div>
+    </div>
+    <div class="ticker">
+      <div class="ticker-symbol">
+        <span id="symbol">—</span>
+        <span class="contract-name" id="contractName"></span>
+      </div>
+      <div class="badges">
+        <span class="badge badge-strategy" id="strategyBadge">strategy</span>
+        <span class="badge badge-mode" id="modeBadge">mode</span>
+      </div>
+    </div>
+    <div class="headline">
+      <div class="headline-equity">
+        <span class="label">Equity</span>
+        <span class="value" id="hdrEquity">$0.00</span>
+      </div>
+      <div class="headline-roi">
+        <span class="label">ROI</span>
+        <span class="value" id="hdrRoi">0.00%</span>
+      </div>
+      <div class="status">
+        <span class="dot" id="statusDot"></span>
+        <span id="statusText">connecting…</span>
+      </div>
+    </div>
+  </header>
+
+  <section class="kpis" id="kpis">
+    <!-- KPI cards injected by JS -->
+  </section>
+
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-tab="overview">Overview</button>
+    <button class="tab" data-tab="chart">Live Chart</button>
+    <button class="tab" data-tab="positions">Positions</button>
+    <button class="tab" data-tab="portfolio">Portfolio</button>
+    <button class="tab" data-tab="trades">Trades</button>
+    <button class="tab" data-tab="performance">Performance</button>
+    <button class="tab" data-tab="logs">Strategy &amp; Logs</button>
+  </nav>
+
+  <main>
+    <!-- OVERVIEW -->
+    <section class="panel active" id="tab-overview">
+      <div class="grid-2">
+        <div class="card chart-card">
+          <div class="card-head">
+            <h3>Equity Curve</h3>
+            <span class="muted" id="curveRange"></span>
+          </div>
+          <canvas id="equityCanvas" height="320"></canvas>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Recent Activity</h3></div>
+          <ul class="activity" id="overviewActivity"></ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- LIVE CHART (TradingView) -->
+    <section class="panel" id="tab-chart">
+      <div class="card chart-card tall">
+        <div class="card-head">
+          <h3>Live Chart — <span id="tvSymbolLabel">—</span></h3>
+          <span class="muted">Powered by TradingView</span>
+        </div>
+        <div id="tradingview-widget" class="tv-container"></div>
+      </div>
+    </section>
+
+    <!-- POSITIONS -->
+    <section class="panel" id="tab-positions">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>Open Position</h3></div>
+          <div id="positionBox" class="position-box">
+            <div class="empty">Flat — no open position.</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Risk Status</h3></div>
+          <div id="riskBox" class="risk-box"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PORTFOLIO -->
+    <section class="panel" id="tab-portfolio">
+      <div id="portfolioEmpty" class="card"><div class="empty" style="text-align:center;color:var(--muted);padding:30px">
+        No portfolio loaded. Run <code>python -m ai_futures_bot.cli portfolio --serve</code> to see the multi-market sleeves and correlation heatmap.
+      </div></div>
+      <div id="portfolioContent" style="display:none">
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-head"><h3>Sleeves</h3><span class="muted" id="pfSummary"></span></div>
+            <div class="table-wrap">
+              <table class="blotter">
+                <thead><tr><th>Market</th><th>Capital</th><th>ROI%</th><th>Sharpe</th><th>Win%</th><th>Trades</th><th>MaxDD%</th></tr></thead>
+                <tbody id="sleevesBody"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3>Diversification</h3></div>
+            <div id="divBox" class="risk-box"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Correlation Heatmap</h3><span class="muted">sleeve return correlations — low = good diversification</span></div>
+          <div id="corrHeatmap" class="heatmap"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TRADES -->
+    <section class="panel" id="tab-trades">
+      <div class="card">
+        <div class="card-head">
+          <h3>Trade Blotter</h3>
+          <span class="muted" id="tradeCount"></span>
+        </div>
+        <div class="table-wrap">
+          <table class="blotter">
+            <thead>
+              <tr>
+                <th>#</th><th>Side</th><th>Qty</th><th>Entry</th><th>Exit</th>
+                <th>P&amp;L ($)</th><th>Return</th><th>Exit Reason</th><th>Entry Time</th>
+              </tr>
+            </thead>
+            <tbody id="tradesBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- PERFORMANCE -->
+    <section class="panel" id="tab-performance">
+      <div class="card">
+        <div class="card-head"><h3>Performance Metrics</h3></div>
+        <div class="metric-grid" id="metricGrid"></div>
+      </div>
+      <div class="card chart-card">
+        <div class="card-head"><h3>Drawdown</h3></div>
+        <canvas id="drawdownCanvas" height="220"></canvas>
+      </div>
+    </section>
+
+    <!-- STRATEGY & LOGS -->
+    <section class="panel" id="tab-logs">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>Active Strategy</h3></div>
+          <div id="strategyInfo" class="strategy-info"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Event Log</h3></div>
+          <ul class="logs" id="eventLog"></ul>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="disclaimer">
+    For education &amp; research only — not financial advice. Trading futures
+    carries substantial risk of loss. Backtested/paper results do not guarantee
+    future performance.
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

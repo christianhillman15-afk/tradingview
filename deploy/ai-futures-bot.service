@@ -1,0 +1,30 @@
+# systemd unit to run the live $50k paper account 24/7 (no Docker).
+#
+# Install:
+#   sudo cp deploy/ai-futures-bot.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now ai-futures-bot
+#   journalctl -u ai-futures-bot -f          # follow logs
+#
+# Edit User/WorkingDirectory/ExecStart paths to match your setup.
+[Unit]
+Description=AI Futures Bot - live $50k paper trading
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=botuser
+WorkingDirectory=/opt/ai-futures-bot
+# Use the project's virtualenv interpreter. Bind to localhost; reach the
+# dashboard via an SSH tunnel or a reverse proxy with auth (see DEPLOY.md).
+ExecStart=/opt/ai-futures-bot/.venv/bin/python -m ai_futures_bot.cli papertrade \
+    --symbol MES --strategy ensemble --interval 1 \
+    --serve --host 127.0.0.1 --port 8000 \
+    --account runtime/account.json --state runtime/state.json
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

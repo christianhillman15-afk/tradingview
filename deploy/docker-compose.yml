@@ -1,0 +1,23 @@
+# Run the live $50k paper account 24/7.
+#   cd <repo root> && docker compose -f deploy/docker-compose.yml up -d --build
+# Then open http://<server-ip>:8000  (secure it — see DEPLOY.md).
+services:
+  ai-futures-bot:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: ai-futures-bot:latest
+    container_name: ai-futures-bot
+    restart: unless-stopped
+    # Bind to localhost only by default; expose via SSH tunnel or a reverse
+    # proxy with auth. Change to "8000:8000" to expose on all interfaces.
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      # Persist the paper account + dashboard state across restarts.
+      - ./runtime:/app/runtime
+    # Override the strategy/symbol/interval here if you like:
+    # command: ["python","-m","ai_futures_bot.cli","papertrade",
+    #           "--symbol","MNQ","--strategy","supertrend","--interval","1",
+    #           "--serve","--host","0.0.0.0","--account","runtime/account.json",
+    #           "--state","runtime/state.json"]

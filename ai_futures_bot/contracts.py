@@ -1,0 +1,161 @@
+"""Futures contract specifications.
+
+A futures contract's economics are defined by its *tick size* (the minimum
+price increment) and *tick value* (the dollar value of one tick). Profit/loss
+in dollars is computed from price moves using these specs, so getting them
+right is essential for correct position sizing and PnL.
+
+Values below reflect CME/ICE specifications at the time of writing and were
+cross-checked against exchange-derived sources (most adversarially verified;
+a handful of softs/livestock/crypto were rate-limited during verification and
+come from standard specs). FX/rate tick conventions use the current CME outright
+increments; grains are quoted in CENTS per bushel (point value matches cents,
+as Yahoo/most feeds quote them). Always re-verify against the exchange before
+trading real money — contract specs change.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class ContractSpec:
+    """Specification for a single futures contract.
+
+    Attributes:
+        symbol: Root symbol (e.g. ``"ES"``).
+        name: Human-readable name.
+        exchange: Listing exchange (e.g. ``"CME"``).
+        tick_size: Minimum price increment (e.g. ``0.25`` index points for ES).
+        tick_value: Dollar value of one tick move for one contract.
+        currency: Quote currency.
+        initial_margin: Approximate exchange initial margin per contract (USD).
+            Indicative only; brokers set their own day-trade margins.
+        point_value: Dollar value of a full 1.0 move in price for one contract.
+    """
+
+    symbol: str
+    name: str
+    exchange: str
+    tick_size: float
+    tick_value: float
+    currency: str = "USD"
+    initial_margin: float = 0.0
+
+    @property
+    def point_value(self) -> float:
+        """Dollar value of a 1.0 price move for one contract."""
+        return self.tick_value / self.tick_size
+
+    def round_to_tick(self, price: float) -> float:
+        """Round a raw price to the nearest valid tick."""
+        ticks = round(price / self.tick_size)
+        return round(ticks * self.tick_size, 10)
+
+    def pnl(self, entry: float, exit_: float, quantity: int) -> float:
+        """Dollar PnL for ``quantity`` contracts (signed: +long, -short)."""
+        return (exit_ - entry) * self.point_value * quantity
+
+
+# Registry of commonly traded index, energy, metal, and rate futures.
+# Tick/point values are standard CME contract specs.
+_REGISTRY: dict[str, ContractSpec] = {
+    spec.symbol: spec
+    for spec in [
+        # --- Equity index ---
+        ContractSpec("ES", "E-mini S&P 500", "CME", 0.25, 12.50, initial_margin=13_200),
+        ContractSpec("MES", "Micro E-mini S&P 500", "CME", 0.25, 1.25, initial_margin=1_320),
+        ContractSpec("NQ", "E-mini Nasdaq-100", "CME", 0.25, 5.00, initial_margin=22_000),
+        ContractSpec("MNQ", "Micro E-mini Nasdaq-100", "CME", 0.25, 0.50, initial_margin=2_200),
+        ContractSpec("YM", "E-mini Dow", "CBOT", 1.0, 5.00, initial_margin=11_000),
+        ContractSpec("MYM", "Micro E-mini Dow", "CBOT", 1.0, 0.50, initial_margin=1_100),
+        ContractSpec("RTY", "E-mini Russell 2000", "CME", 0.10, 5.00, initial_margin=8_000),
+        ContractSpec("M2K", "Micro E-mini Russell 2000", "CME", 0.10, 0.50, initial_margin=800),
+        # --- Energy ---
+        ContractSpec("CL", "Crude Oil WTI", "NYMEX", 0.01, 10.00, initial_margin=6_500),
+        ContractSpec("MCL", "Micro WTI Crude Oil", "NYMEX", 0.01, 1.00, initial_margin=650),
+        ContractSpec("NG", "Natural Gas", "NYMEX", 0.001, 10.00, initial_margin=3_500),
+        # --- Metals ---
+        ContractSpec("GC", "Gold", "COMEX", 0.10, 10.00, initial_margin=11_000),
+        ContractSpec("MGC", "Micro Gold", "COMEX", 0.10, 1.00, initial_margin=1_100),
+        ContractSpec("SI", "Silver", "COMEX", 0.005, 25.00, initial_margin=14_000),
+        # --- Rates (CBOT/CME) ---
+        ContractSpec("ZT", "2-Year T-Note", "CBOT", 0.00390625, 7.8125, initial_margin=1_320),
+        ContractSpec("ZF", "5-Year T-Note", "CBOT", 0.0078125, 7.8125, initial_margin=1_300),
+        ContractSpec("ZN", "10-Year T-Note", "CBOT", 0.015625, 15.625, initial_margin=2_000),
+        ContractSpec("TN", "Ultra 10-Year T-Note", "CBOT", 0.015625, 15.625, initial_margin=2_600),
+        ContractSpec("ZB", "30-Year T-Bond", "CBOT", 0.03125, 31.25, initial_margin=3_800),
+        ContractSpec("UB", "Ultra T-Bond", "CBOT", 0.03125, 31.25, initial_margin=5_800),
+        ContractSpec("SR3", "3-Month SOFR", "CME", 0.005, 12.50, initial_margin=450),
+        # --- FX (CME); tick conventions reflect current CME outright increments ---
+        ContractSpec("6E", "Euro FX", "CME", 0.00005, 6.25, initial_margin=2_970),
+        ContractSpec("6J", "Japanese Yen", "CME", 0.0000005, 6.25, initial_margin=3_500),
+        ContractSpec("6B", "British Pound", "CME", 0.0001, 6.25, initial_margin=2_200),
+        ContractSpec("6A", "Australian Dollar", "CME", 0.00005, 5.00, initial_margin=2_300),
+        ContractSpec("6C", "Canadian Dollar", "CME", 0.0001, 10.00, initial_margin=990),
+        ContractSpec("6S", "Swiss Franc", "CME", 0.0001, 12.50, initial_margin=4_500),
+        ContractSpec("6N", "New Zealand Dollar", "CME", 0.00005, 5.00, initial_margin=1_430),
+        ContractSpec("6M", "Mexican Peso", "CME", 0.00001, 5.00, initial_margin=1_210),
+        ContractSpec("M6E", "Micro Euro FX", "CME", 0.0001, 1.25, initial_margin=240),
+        ContractSpec("M6A", "Micro AUD/USD", "CME", 0.0001, 1.00, initial_margin=180),
+        ContractSpec("M6B", "Micro GBP/USD", "CME", 0.0001, 0.625, initial_margin=209),
+        # --- Energy (NYMEX) ---
+        ContractSpec("BZ", "Brent Crude Oil", "NYMEX", 0.01, 10.00, initial_margin=5_500),
+        ContractSpec("RB", "RBOB Gasoline", "NYMEX", 0.0001, 4.20, initial_margin=7_000),
+        ContractSpec("HO", "NY Harbor ULSD", "NYMEX", 0.0001, 4.20, initial_margin=7_000),
+        ContractSpec("QG", "E-mini Natural Gas", "NYMEX", 0.005, 12.50, initial_margin=1_100),
+        ContractSpec("MNG", "Micro Henry Hub Natural Gas", "NYMEX", 0.001, 1.00, initial_margin=340),
+        # --- Metals (COMEX / NYMEX) ---
+        ContractSpec("HG", "Copper", "COMEX", 0.0005, 12.50, initial_margin=6_000),
+        ContractSpec("MHG", "Micro Copper", "COMEX", 0.0005, 1.25, initial_margin=600),
+        ContractSpec("SIL", "Micro Silver (1,000 oz)", "COMEX", 0.005, 5.00, initial_margin=2_800),
+        ContractSpec("PL", "Platinum", "NYMEX", 0.10, 5.00, initial_margin=3_500),
+        ContractSpec("PA", "Palladium", "NYMEX", 0.50, 50.00, initial_margin=11_000),
+        # --- Grains / oilseeds (CBOT); quoted in CENTS per bushel (point value
+        #     reflects cents-quoting, matching Yahoo/most data feeds) ---
+        ContractSpec("ZC", "Corn", "CBOT", 0.25, 12.50, initial_margin=1_200),
+        ContractSpec("ZS", "Soybeans", "CBOT", 0.25, 12.50, initial_margin=2_600),
+        ContractSpec("ZW", "Chicago SRW Wheat", "CBOT", 0.25, 12.50, initial_margin=2_200),
+        ContractSpec("KE", "KC HRW Wheat", "CBOT", 0.25, 12.50, initial_margin=2_200),
+        ContractSpec("ZL", "Soybean Oil", "CBOT", 0.01, 6.00, initial_margin=1_100),
+        ContractSpec("ZM", "Soybean Meal", "CBOT", 0.10, 10.00, initial_margin=2_400),
+        ContractSpec("ZO", "Oats", "CBOT", 0.25, 12.50, initial_margin=1_000),
+        # --- Livestock (CME) ---
+        ContractSpec("LE", "Live Cattle", "CME", 0.025, 10.00, initial_margin=1_700),
+        ContractSpec("GF", "Feeder Cattle", "CME", 0.025, 12.50, initial_margin=3_200),
+        ContractSpec("HE", "Lean Hogs", "CME", 0.025, 10.00, initial_margin=1_600),
+        # --- Softs (ICE) ---
+        ContractSpec("KC", "Coffee C", "ICE", 0.05, 18.75, initial_margin=9_000),
+        ContractSpec("SB", "Sugar No.11", "ICE", 0.01, 11.20, initial_margin=1_300),
+        ContractSpec("CC", "Cocoa", "ICE", 1.0, 10.00, initial_margin=3_000),
+        ContractSpec("CT", "Cotton No.2", "ICE", 0.01, 5.00, initial_margin=2_500),
+        ContractSpec("OJ", "Orange Juice", "ICE", 0.05, 7.50, initial_margin=2_000),
+        # --- Crypto (CME) ---
+        ContractSpec("BTC", "Bitcoin", "CME", 5.0, 25.00, initial_margin=90_000),
+        ContractSpec("MBT", "Micro Bitcoin", "CME", 5.0, 0.50, initial_margin=1_800),
+    ]
+}
+
+
+def get_contract(symbol: str) -> ContractSpec:
+    """Look up a contract spec by root symbol (case-insensitive).
+
+    Raises:
+        KeyError: if the symbol is not in the registry.
+    """
+    key = symbol.upper().strip()
+    if key not in _REGISTRY:
+        available = ", ".join(sorted(_REGISTRY))
+        raise KeyError(f"Unknown contract {symbol!r}. Available: {available}")
+    return _REGISTRY[key]
+
+
+def register_contract(spec: ContractSpec) -> None:
+    """Add or override a contract spec in the registry."""
+    _REGISTRY[spec.symbol.upper()] = spec
+
+
+def list_contracts() -> list[ContractSpec]:
+    """Return all registered contract specs, sorted by symbol."""
+    return [_REGISTRY[k] for k in sorted(_REGISTRY)]
